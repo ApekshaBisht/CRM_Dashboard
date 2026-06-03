@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cyient Foundation – Super Admin Login</title>
+    <title>Cyient Foundation – {{ role_name }} Login</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/logo.svg') }}" />
     <style>
@@ -89,7 +89,7 @@
         <div class="login-card">
             <div class="login-header">
                 <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Cyient Foundation" />
-                <h1>Super Admin</h1>
+                <h1>{{ role_name }}</h1>
                 <p>Sign in to Cyient Foundation CRM</p>
             </div>
 
@@ -118,9 +118,10 @@
         document.getElementById('loginForm').addEventListener('submit', function (e) {
             e.preventDefault();
             const email = document.getElementById('email').value.toLowerCase();
-            
-            if (email !== 'pavan.kumar@cyient.com' && email !== 'admin@cyient.com') {
-                alert('Access Denied: Only Pavan Kumar is authorized to login at this time.');
+            const role = "{{ role }}";
+
+            if (role === 'superadmin' && email !== 'admin@cyient.com') {
+                alert('Access Denied');
                 return;
             }
 
@@ -128,7 +129,9 @@
             btn.innerHTML = 'Signing in...';
             btn.disabled = true;
             setTimeout(() => {
-                window.location.href = '/';
+                if (role === 'student') window.location.href = '/student';
+                else if (role === 'trainer') window.location.href = '/trainer';
+                else window.location.href = '/';
             }, 500);
         });
     </script>

@@ -18,6 +18,8 @@ DROP TABLE IF EXISTS modules;
 DROP TABLE IF EXISTS courses;
 DROP TABLE IF EXISTS projects;
 DROP TABLE IF EXISTS administrators;
+DROP TABLE IF EXISTS internships;
+DROP TABLE IF EXISTS feedbacks;
 
 -- =====================================================
 -- Administrators
@@ -172,6 +174,36 @@ CREATE TABLE students (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
     FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE SET NULL
+);
+
+-- =====================================================
+-- Internships
+-- =====================================================
+CREATE TABLE internships (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL,
+    company_name TEXT NOT NULL,
+    role TEXT,
+    start_date TEXT,
+    end_date TEXT,
+    status TEXT NOT NULL DEFAULT 'Active', -- Active / Completed / Dropped
+    stipend REAL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+);
+
+-- =====================================================
+-- Feedbacks
+-- =====================================================
+CREATE TABLE feedbacks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider_name TEXT NOT NULL,
+    provider_role TEXT DEFAULT 'Student', -- Student / Trainer / Volunteer / Admin
+    subject TEXT,
+    comments TEXT,
+    rating INTEGER DEFAULT 5,
+    status TEXT NOT NULL DEFAULT 'Pending', -- Pending / Reviewed / Addressed
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- =====================================================

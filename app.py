@@ -246,6 +246,20 @@ build_crud(
     joins="LEFT JOIN activities ON volunteers.activity_id = activities.id",
 )
 
+build_crud(
+    "internships", "internships",
+    fields=["student_id", "company_name", "role", "start_date", "end_date", "status", "stipend"],
+    search_fields=["company_name", "role", "internships.status"],
+    select_extra="students.name AS student_name",
+    joins="LEFT JOIN students ON internships.student_id = students.id",
+)
+
+build_crud(
+    "feedbacks", "feedbacks",
+    fields=["provider_name", "provider_role", "subject", "comments", "rating", "status"],
+    search_fields=["provider_name", "provider_role", "subject", "status"],
+)
+
 
 # ---------------------------------------------------------------------------
 # Master board / dashboard aggregates
@@ -271,6 +285,8 @@ def dashboard():
         "chapter_assignments": db.execute("SELECT COUNT(*) FROM chapter_assignments").fetchone()[0],
         "volunteers": db.execute("SELECT COUNT(*) FROM volunteers").fetchone()[0],
         "active_volunteers": db.execute("SELECT COUNT(*) FROM volunteers WHERE status='Active'").fetchone()[0],
+        "internships": db.execute("SELECT COUNT(*) FROM internships").fetchone()[0],
+        "feedbacks": db.execute("SELECT COUNT(*) FROM feedbacks").fetchone()[0],
     }
 
     # ----- Project status breakdown -----
@@ -358,9 +374,23 @@ def index():
     return render_template("index.html")
 
 @app.route("/login")
-def login():
-    return render_template("login.html")
+def login_selection():
+    return render_template("role_selection.html")
 
+@app.route("/login/<role>")
+def login_form(role):
+    if role not in ["student", "trainer", "superadmin"]:
+        abort(404)
+    display_names = {"student": "Student", "trainer": "Trainer", "superadmin": "Super Admin"}
+    return render_template("login.html", role=role, role_name=display_names[role])
+
+@app.route("/student")
+def student_dashboard():
+    return render_template("student.html")
+
+@app.route("/trainer")
+def trainer_dashboard():
+    return render_template("trainer.html")
 
 @app.errorhandler(404)
 def not_found(e):

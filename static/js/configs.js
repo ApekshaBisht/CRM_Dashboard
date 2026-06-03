@@ -14,6 +14,8 @@ const STATUS_OPTIONS = {
   attendance_student: ['Present', 'Absent', 'Late', 'Excused'],
   attendance_trainer: ['Present', 'Absent', 'Half-day', 'On Leave'],
   volunteer: ['Active', 'Inactive', 'On Break'],
+  internship: ['Active', 'Completed', 'Dropped'],
+  feedback: ['Pending', 'Reviewed', 'Addressed'],
 };
 
 // Async option sources for FK selects.
@@ -390,6 +392,55 @@ const ENTITIES = {
       { key: 'remarks', label: 'Remarks', type: 'textarea', full: true },
     ],
   },
+
+  // ---------- INTERNSHIPS ----------
+  internships: {
+    title: 'Internship Management',
+    section: 'People',
+    entity: 'internships',
+    icon: 'briefcase',
+    columns: [
+      { key: 'id', label: '#', render: (r) => `<strong>#${r.id}</strong>` },
+      { key: 'student_name', label: 'Student' },
+      { key: 'company_name', label: 'Company' },
+      { key: 'role', label: 'Role' },
+      { key: 'start_date', label: 'Start Date', render: (r) => UI.fmtDate(r.start_date) },
+      { key: 'status', label: 'Status', render: (r) => UI.badge(r.status) },
+    ],
+    fields: [
+      { key: 'student_id', label: 'Student', type: 'select', required: true, options: opts('students') },
+      { key: 'company_name', label: 'Company Name', required: true, full: true },
+      { key: 'role', label: 'Role' },
+      { key: 'start_date', label: 'Start Date', type: 'date' },
+      { key: 'end_date', label: 'End Date', type: 'date' },
+      { key: 'stipend', label: 'Stipend', type: 'number', min: 0 },
+      { key: 'status', label: 'Status', type: 'select', required: true, options: STATUS_OPTIONS.internship },
+    ],
+  },
+
+  // ---------- FEEDBACKS ----------
+  feedbacks: {
+    title: 'Feedback Management',
+    section: 'People',
+    entity: 'feedbacks',
+    icon: 'edit',
+    columns: [
+      { key: 'id', label: '#', render: (r) => `<strong>#${r.id}</strong>` },
+      { key: 'provider_name', label: 'Provider Name' },
+      { key: 'provider_role', label: 'Role', render: (r) => UI.badge(r.provider_role) },
+      { key: 'subject', label: 'Subject' },
+      { key: 'rating', label: 'Rating', render: (r) => `${r.rating}/5` },
+      { key: 'status', label: 'Status', render: (r) => UI.badge(r.status) },
+    ],
+    fields: [
+      { key: 'provider_name', label: 'Provider Name', required: true, full: true },
+      { key: 'provider_role', label: 'Provider Role', type: 'select', options: ['Student', 'Trainer', 'Volunteer', 'Admin'] },
+      { key: 'subject', label: 'Subject', required: true, full: true },
+      { key: 'comments', label: 'Comments', type: 'textarea', full: true },
+      { key: 'rating', label: 'Rating (1-5)', type: 'number', min: 1, max: 5 },
+      { key: 'status', label: 'Status', type: 'select', required: true, options: STATUS_OPTIONS.feedback },
+    ],
+  },
 };
 
 // Sidebar order — grouped by section
@@ -410,6 +461,8 @@ const NAV_ORDER = [
   { type: 'item',    key: 'trainers',            label: 'Trainers',                    icon: 'user-tie' },
   { type: 'item',    key: 'volunteers',          label: 'Volunteers',                  icon: 'heart' },
   { type: 'item',    key: 'administrators',      label: 'Administrators',              icon: 'shield' },
+  { type: 'item',    key: 'internships',         label: 'Internships',                 icon: 'briefcase' },
+  { type: 'item',    key: 'feedbacks',           label: 'Feedback',                    icon: 'edit' },
   { type: 'heading', label: 'Attendance' },
   { type: 'item',    key: 'student_attendance',  label: 'Student Attendance',          icon: 'check-circle' },
   { type: 'item',    key: 'trainer_attendance',  label: 'Trainer Attendance',          icon: 'clock' },
