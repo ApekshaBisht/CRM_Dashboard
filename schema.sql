@@ -191,8 +191,14 @@ CREATE TABLE internships (
     role TEXT,
     start_date TEXT,
     end_date TEXT,
-    status TEXT NOT NULL DEFAULT 'Active', -- Active / Completed / Dropped
+    status TEXT NOT NULL DEFAULT 'Active', -- Active / Inactive / Completed
     stipend REAL DEFAULT 0,
+    visitor_card_id TEXT,
+    reporting_manager TEXT,
+    offer_letter_file TEXT,
+    internship_report_file TEXT,
+    certificate_file TEXT,
+    lor_file TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
 );

@@ -14,7 +14,7 @@ const STATUS_OPTIONS = {
   attendance_student: ['Present', 'Absent', 'Late', 'Excused'],
   attendance_trainer: ['Present', 'Absent', 'Half-day', 'On Leave'],
   volunteer: ['Active', 'Inactive', 'On Break'],
-  internship: ['Active', 'Completed', 'Dropped'],
+  internship: ['Active', 'Inactive', 'Completed'],
   feedback: ['Pending', 'Reviewed', 'Addressed'],
 };
 
@@ -400,22 +400,29 @@ const ENTITIES = {
     entity: 'internships',
     icon: 'briefcase',
     columns: [
-      { key: 'id', label: '#', render: (r) => `<strong>#${r.id}</strong>` },
-      { key: 'student_name', label: 'Student' },
-      { key: 'company_name', label: 'Company' },
+      { key: 'id', label: 'S.No', render: (r) => `<strong>#${r.id}</strong>` },
+      { key: 'student_name', label: 'Student Name' },
+      { key: 'institution', label: 'University' },
       { key: 'role', label: 'Role' },
+      { key: 'email', label: 'Email ID' },
+      { key: 'phone', label: 'Mobile No' },
+      { key: 'visitor_card_id', label: 'Visitor Card ID No' },
       { key: 'start_date', label: 'Start Date', render: (r) => UI.fmtDate(r.start_date) },
+      { key: 'end_date', label: 'End Date', render: (r) => UI.fmtDate(r.end_date) },
       { key: 'status', label: 'Status', render: (r) => UI.badge(r.status) },
     ],
     fields: [
       { key: 'student_id', label: 'Student', type: 'select', required: true, options: opts('students') },
       { key: 'company_name', label: 'Company Name', required: true, full: true },
       { key: 'role', label: 'Role' },
+      { key: 'visitor_card_id', label: 'Visitor Card ID No' },
+      { key: 'reporting_manager', label: 'Reporting Manager' },
       { key: 'start_date', label: 'Start Date', type: 'date' },
       { key: 'end_date', label: 'End Date', type: 'date' },
       { key: 'stipend', label: 'Stipend', type: 'number', min: 0 },
       { key: 'status', label: 'Status', type: 'select', required: true, options: STATUS_OPTIONS.internship },
     ],
+    customActions: (r) => `<button class="btn btn-icon" title="Manage Documents" data-action="docs" data-id="${r.id}"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></button>`
   },
 
   // ---------- FEEDBACKS ----------

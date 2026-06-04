@@ -181,12 +181,15 @@
       refreshBtn.addEventListener('click', () => renderEntityPage(cfg, query));
     }
 
-    // Per-row edit / delete
+    // Per-row edit / delete / custom
     elContent.querySelectorAll('[data-action="edit"]').forEach((btn) => {
       btn.addEventListener('click', () => onEdit(cfg, Number(btn.dataset.id)));
     });
     elContent.querySelectorAll('[data-action="delete"]').forEach((btn) => {
       btn.addEventListener('click', () => onDelete(cfg, Number(btn.dataset.id)));
+    });
+    elContent.querySelectorAll('[data-action="docs"]').forEach((btn) => {
+      btn.addEventListener('click', () => onDocs(cfg, Number(btn.dataset.id)));
     });
   }
 
@@ -209,6 +212,7 @@
               return `<td>${val}</td>`;
             }).join('')}
             <td class="col-actions">
+              ${cfg.customActions ? cfg.customActions(row) : ''}
               <button class="btn btn-icon" title="Edit" data-action="edit" data-id="${row.id}">${ICONS.edit}</button>
               <button class="btn btn-icon btn-icon-danger" title="Delete" data-action="delete" data-id="${row.id}">${ICONS.trash}</button>
             </td>
@@ -273,6 +277,85 @@
     } catch (err) {
       UI.toast(err.message || 'Delete failed', 'danger');
     }
+  }
+
+  async function onDocs(cfg, id) {
+    if (cfg.entity !== 'internships') return;
+    
+    // Fetch internship data to see what files exist
+    const current = await API.get(cfg.entity, id);
+    const docs = [
+      { key: 'offer_letter', label: 'Offer Letter', file: current.offer_letter_file },
+      { key: 'internship_report', label: 'Internship Report', file: current.internship_report_file },
+      { key: 'certificate', label: 'Certificate of Completion', file: current.certificate_file },
+      { key: 'lor', label: 'Letter of Recommendation', file: current.lor_file }
+    ];
+
+    // Build modal overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-backdrop';
+    
+    const html = `
+      <div class="modal" style="max-width:600px;">
+        <header class="modal-header">
+          <h3>Manage Documents (Internship #${id})</h3>
+          <button class="modal-close" title="Close">×</button>
+        </header>
+        <div class="modal-body" style="padding:20px;">
+          <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:15px;">
+            ${docs.map(d => `
+              <li style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:12px; border-radius:6px; border:1px solid #e2e8f0;">
+                <div style="flex:1;">
+                  <h4 style="margin:0 0 5px; font-size:14px; color:#1e293b;">${UI.escapeHtml(d.label)}</h4>
+                  ${d.file 
+                    ? `<a href="/api/internships/files/${d.file}" target="_blank" style="font-size:12px; color:var(--primary); text-decoration:none;">📄 ${d.file}</a>` 
+                    : `<span style="font-size:12px; color:#94a3b8;">No file uploaded</span>`}
+                </div>
+                <div style="margin-left:15px;">
+                  <label class="btn btn-sm btn-ghost" style="cursor:pointer;">
+                    Upload / Replace
+                    <input type="file" hidden accept=".pdf,.mp4,.webm,.mov,.png,.jpg,.jpeg,.ppt,.pptx,.doc,.docx" data-doc-type="${d.key}" />
+                  </label>
+                </div>
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+      </div>
+    `;
+    overlay.innerHTML = html;
+    document.body.appendChild(overlay);
+
+    const closeBtn = overlay.querySelector('.modal-close');
+    const closeOverlay = (e) => {
+      if (e.target === overlay || e.target === closeBtn) overlay.remove();
+    };
+    overlay.addEventListener('click', closeOverlay);
+
+    overlay.querySelectorAll('input[type="file"]').forEach(input => {
+      input.addEventListener('change', async (e) => {
+        if (!input.files.length) return;
+        const file = input.files[0];
+        const docType = input.dataset.docType;
+        const fd = new FormData();
+        fd.append('file', file);
+        
+        UI.toast('Uploading...', 'info');
+        try {
+          const res = await fetch(`/api/internships/${id}/upload/${docType}`, {
+            method: 'POST',
+            body: fd
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Upload failed');
+          UI.toast('Upload successful', 'success');
+          overlay.remove();
+          onDocs(cfg, id); // refresh modal
+        } catch (err) {
+          UI.toast(err.message, 'danger');
+        }
+      });
+    });
   }
 
   // ======================================================================

@@ -336,9 +336,11 @@ build_crud(
 
 build_crud(
     "internships", "internships",
-    fields=["student_id", "company_name", "role", "start_date", "end_date", "status", "stipend"],
-    search_fields=["company_name", "role", "internships.status"],
-    select_extra="students.name AS student_name",
+    fields=["student_id", "company_name", "role", "start_date", "end_date", "status", "stipend",
+            "visitor_card_id", "reporting_manager", "offer_letter_file", "internship_report_file",
+            "certificate_file", "lor_file"],
+    search_fields=["company_name", "role", "internships.status", "visitor_card_id", "students.name", "students.institution", "students.email", "students.phone"],
+    select_extra="students.name AS student_name, students.institution AS institution, students.email AS email, students.phone AS phone",
     joins="LEFT JOIN students ON internships.student_id = students.id",
 )
 
@@ -858,6 +860,54 @@ def chapter_file_download(file_id):
         abort(404)
     return send_from_directory(UPLOAD_DIR, rec["stored_name"],
                                as_attachment=True, download_name=rec["original_name"])
+
+
+# ---------------------------------------------------------------------------
+# Internship Files: upload / download
+# ---------------------------------------------------------------------------
+@app.route("/api/internships/<int:item_id>/upload/<doc_type>", methods=["POST"])
+@require_role("superadmin", "admin")
+def upload_internship_file(item_id, doc_type):
+    if "file" not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    f = request.files["file"]
+    if not f or f.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+
+    allowed_types = ["offer_letter", "internship_report", "certificate", "lor"]
+    if doc_type not in allowed_types:
+        return jsonify({"error": "Invalid document type"}), 400
+
+    ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
+    if ext not in ALLOWED_EXT:
+        return jsonify({"error": f"File type .{ext} not allowed"}), 400
+
+    col_map = {
+        "offer_letter": "offer_letter_file",
+        "internship_report": "internship_report_file",
+        "certificate": "certificate_file",
+        "lor": "lor_file"
+    }
+    col = col_map[doc_type]
+    
+    stored = f"internship_{item_id}_{doc_type}_{uuid.uuid4().hex[:8]}.{ext}"
+    path = os.path.join(UPLOAD_DIR, stored)
+    f.save(path)
+
+    # Clean up old file if exists
+    old_row = fetch_one(f"SELECT {col} FROM internships WHERE id = ?", (item_id,))
+    if old_row and old_row[col]:
+        try:
+            os.remove(os.path.join(UPLOAD_DIR, old_row[col]))
+        except OSError:
+            pass
+
+    execute(f"UPDATE internships SET {col} = ? WHERE id = ?", (stored, item_id))
+    return jsonify({"ok": True, "filename": stored}), 200
+
+@app.route("/api/internships/files/<filename>", methods=["GET"])
+def download_internship_file(filename):
+    return send_from_directory(UPLOAD_DIR, filename)
 
 
 @app.errorhandler(404)
