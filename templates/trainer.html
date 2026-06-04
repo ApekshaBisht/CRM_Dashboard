@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trainer Portal – Cyient Foundation</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/logo.svg') }}" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Cyient" />
+          <div class="logo-text">
+            <div class="brand">Cyient Foundation</div>
+            <div class="brand-sub">Trainer Portal</div>
+          </div>
+        </div>
+      </div>
+      <nav class="sidebar-nav" id="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="user-card">
+          <div class="user-avatar">{{ user_initials }}</div>
+          <div class="user-info">
+            <div class="user-name">{{ user_name }}</div>
+            <div class="user-role">Trainer</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobile-menu" title="Open menu">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+        </button>
+        <div class="page-heading">
+          <div class="breadcrumb"><span id="bc-section">Trainer Portal</span></div>
+          <h1 id="page-title">Dashboard</h1>
+        </div>
+        <div class="topbar-actions">
+          <a href="/login" class="btn btn-ghost" id="logout-action" title="Logout">Logout</a>
+        </div>
+      </header>
+      <section class="content" id="content">
+        <div class="loader"><div class="spinner"></div><div>Loading…</div></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- modal shell (used by UI.openForm) -->
+  <div class="modal-backdrop" id="modal-backdrop" hidden>
+    <div class="modal">
+      <header class="modal-header"><h3 id="modal-title">Form</h3>
+        <button class="modal-close" id="modal-close" title="Close">×</button></header>
+      <form id="modal-form" class="modal-form">
+        <div id="modal-fields"></div>
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-ghost" id="modal-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="modal-submit">Save</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+  <div class="modal-backdrop" id="confirm-backdrop" hidden>
+    <div class="modal confirm-modal">
+      <header class="modal-header"><h3>Confirm action</h3></header>
+      <div class="modal-body" id="confirm-body">Are you sure?</div>
+      <footer class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="confirm-cancel">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirm-ok">Delete</button>
+      </footer>
+    </div>
+  </div>
+  <div class="toast-container" id="toast-container"></div>
+
+  <script>window.PORTAL = { role: 'trainer', name: "{{ user_name }}" };</script>
+  <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/portal.js') }}"></script>
+</body>
+</html>

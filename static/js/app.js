@@ -1,0 +1,379 @@
+/* ===================================================================
+   app.js — Main SPA router for Cyient Foundation CRM Dashboard
+
+   Responsibilities:
+     - Build sidebar navigation from NAV_ORDER + ICONS
+     - Wire sidebar toggle (desktop collapse) and mobile menu
+     - Hash-based routing (#dashboard, #projects, #students, etc.)
+     - Render the dashboard via Dashboard.render(...)
+     - Render every entity module as a searchable table-card with CRUD
+     - Hook up the global search box, the primary "+ Add" button,
+       and per-row edit/delete actions
+
+   Globals it relies on (defined in earlier scripts):
+     API     -> api.js
+     UI      -> ui.js
+     ENTITIES, NAV_ORDER, ICONS, STATUS_OPTIONS, opts -> configs.js
+     Dashboard -> dashboard.js
+   =================================================================== */
+(() => {
+  'use strict';
+
+  // --- Element handles ----------------------------------------------------
+  const elShell        = document.querySelector('.app-shell');
+  const elNav          = document.getElementById('sidebar-nav');
+  const elContent      = document.getElementById('content');
+  const elPageTitle    = document.getElementById('page-title');
+  const elBcSection    = document.getElementById('bc-section');
+  const elSearch       = document.getElementById('global-search');
+  const elPrimary      = document.getElementById('primary-action');
+  const elSidebarBtn   = document.getElementById('sidebar-toggle');
+  const elMobileBtn    = document.getElementById('mobile-menu');
+
+  // --- Router state -------------------------------------------------------
+  const state = {
+    currentKey: null,          // active nav key
+    currentRows: [],           // last fetched rows for the active entity
+    searchTimer: null,         // debounce handle
+    searchHandler: null,       // bound search handler we attach/remove
+    primaryHandler: null,      // bound "+ Add" handler we attach/remove
+  };
+
+  // ======================================================================
+  //                           SIDEBAR
+  // ======================================================================
+
+  function buildSidebar() {
+    const html = NAV_ORDER.map((item) => {
+      if (item.type === 'heading') {
+        return `<div class="nav-heading">${UI.escapeHtml(item.label)}</div>`;
+      }
+      const icon = ICONS[item.icon] || '';
+      return `
+        <button class="nav-item" data-key="${item.key}" type="button">
+          <span class="nav-icon">${icon}</span>
+          <span class="nav-label">${UI.escapeHtml(item.label)}</span>
+        </button>
+      `;
+    }).join('');
+    elNav.innerHTML = html;
+
+    elNav.querySelectorAll('.nav-item').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.key;
+        location.hash = `#${key}`;
+        // also close the mobile sidebar after a tap
+        elShell.classList.remove('mobile-open');
+      });
+    });
+  }
+
+  function markActiveNav(key) {
+    elNav.querySelectorAll('.nav-item').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.key === key);
+    });
+  }
+
+  // ======================================================================
+  //                           ROUTING
+  // ======================================================================
+
+  function parseHash() {
+    const raw = (location.hash || '').replace(/^#/, '').trim();
+    if (!raw) return 'dashboard';
+    if (raw === 'dashboard' || ENTITIES[raw]) return raw;
+    return 'dashboard';
+  }
+
+  async function route() {
+    const key = parseHash();
+    state.currentKey = key;
+    markActiveNav(key);
+
+    // Reset shared topbar handlers between routes
+    detachSearch();
+    detachPrimaryAction();
+    elSearch.value = '';
+
+    elContent.innerHTML = `<div class="loader"><div class="spinner"></div><div>Loading…</div></div>`;
+
+    try {
+      if (key === 'dashboard') {
+        // Dashboard view: no search, no add button
+        elPageTitle.textContent = 'Master Board';
+        elBcSection.textContent = 'Dashboard';
+        elSearch.parentElement.style.visibility = 'hidden';
+        elPrimary.style.display = 'none';
+        await Dashboard.render(elContent);
+      } else {
+        const cfg = ENTITIES[key];
+        elPageTitle.textContent = cfg.title;
+        elBcSection.textContent = cfg.section || 'CRM';
+        elSearch.parentElement.style.visibility = 'visible';
+        elPrimary.style.display = '';
+        elPrimary.textContent = `+ Add ${singularize(cfg.title)}`;
+
+        attachPrimaryAction(cfg);
+        attachSearch(cfg);
+        await renderEntityPage(cfg);
+      }
+    } catch (err) {
+      console.error(err);
+      elContent.innerHTML = `
+        <div class="card">
+          <div class="empty-state">
+            <h3>Something went wrong</h3>
+            <p>${UI.escapeHtml(err.message || 'Unknown error')}</p>
+            <button class="btn btn-primary" onclick="location.reload()">Reload</button>
+          </div>
+        </div>`;
+      UI.toast(err.message || 'Failed to load page', 'danger');
+    }
+  }
+
+  function singularize(title) {
+    // crude but reasonable for our titles
+    if (title.endsWith('Management')) return title.replace(/ Management$/, '');
+    if (title.endsWith('s'))          return title.slice(0, -1);
+    return title;
+  }
+
+  // ======================================================================
+  //                       ENTITY PAGE RENDER
+  // ======================================================================
+
+  async function renderEntityPage(cfg, query = '') {
+    const params = query ? { q: query } : {};
+    let rows;
+    try {
+      rows = await API.list(cfg.entity, params);
+    } catch (err) {
+      throw new Error(`Could not load ${cfg.title}: ${err.message}`);
+    }
+    state.currentRows = rows;
+
+    elContent.innerHTML = `
+      <div class="card table-card">
+        <div class="table-toolbar">
+          <div class="table-meta">
+            <span class="badge badge-info">${rows.length} record${rows.length === 1 ? '' : 's'}</span>
+            ${query ? `<span class="muted">filtered by “${UI.escapeHtml(query)}”</span>` : ''}
+          </div>
+          <div class="table-actions">
+            <button class="btn btn-ghost btn-sm" id="refresh-btn">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Refresh
+            </button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          ${rows.length ? buildTable(cfg, rows) : UI.emptyState(
+            `No ${cfg.title.toLowerCase()} yet`,
+            'Click the “+ Add” button in the top right to create one.'
+          )}
+        </div>
+      </div>
+    `;
+
+    // Refresh
+    const refreshBtn = document.getElementById('refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => renderEntityPage(cfg, query));
+    }
+
+    // Per-row edit / delete
+    elContent.querySelectorAll('[data-action="edit"]').forEach((btn) => {
+      btn.addEventListener('click', () => onEdit(cfg, Number(btn.dataset.id)));
+    });
+    elContent.querySelectorAll('[data-action="delete"]').forEach((btn) => {
+      btn.addEventListener('click', () => onDelete(cfg, Number(btn.dataset.id)));
+    });
+  }
+
+  function buildTable(cfg, rows) {
+    const cols = cfg.columns;
+    const head = `
+      <thead>
+        <tr>
+          ${cols.map((c) => `<th>${UI.escapeHtml(c.label)}</th>`).join('')}
+          <th class="col-actions">Actions</th>
+        </tr>
+      </thead>`;
+
+    const body = `
+      <tbody>
+        ${rows.map((row) => `
+          <tr>
+            ${cols.map((c) => {
+              const val = c.render ? c.render(row) : formatCell(row[c.key]);
+              return `<td>${val}</td>`;
+            }).join('')}
+            <td class="col-actions">
+              <button class="btn btn-icon" title="Edit" data-action="edit" data-id="${row.id}">${ICONS.edit}</button>
+              <button class="btn btn-icon btn-icon-danger" title="Delete" data-action="delete" data-id="${row.id}">${ICONS.trash}</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>`;
+
+    return `<table class="data-table">${head}${body}</table>`;
+  }
+
+  function formatCell(v) {
+    if (v === null || v === undefined || v === '') return '<span class="muted">—</span>';
+    return UI.escapeHtml(String(v));
+  }
+
+  // ======================================================================
+  //                       CRUD HANDLERS
+  // ======================================================================
+
+  async function onCreate(cfg) {
+    try {
+      const values = await UI.openForm({
+        title: `Add ${singularize(cfg.title)}`,
+        fields: cfg.fields,
+      });
+      if (!values) return; // cancelled
+      await API.create(cfg.entity, values);
+      UI.toast(`${singularize(cfg.title)} created`, 'success');
+      await renderEntityPage(cfg, elSearch.value.trim());
+    } catch (err) {
+      UI.toast(err.message || 'Create failed', 'danger');
+    }
+  }
+
+  async function onEdit(cfg, id) {
+    try {
+      const current = await API.get(cfg.entity, id);
+      const values = await UI.openForm({
+        title: `Edit ${singularize(cfg.title)} #${id}`,
+        fields: cfg.fields,
+        values: current,
+      });
+      if (!values) return;
+      await API.update(cfg.entity, id, values);
+      UI.toast(`${singularize(cfg.title)} updated`, 'success');
+      await renderEntityPage(cfg, elSearch.value.trim());
+    } catch (err) {
+      UI.toast(err.message || 'Update failed', 'danger');
+    }
+  }
+
+  async function onDelete(cfg, id) {
+    const ok = await UI.confirmAction(
+      `Delete this ${singularize(cfg.title).toLowerCase()} (#${id})? This action cannot be undone.`,
+      'Delete'
+    );
+    if (!ok) return;
+    try {
+      await API.remove(cfg.entity, id);
+      UI.toast(`${singularize(cfg.title)} deleted`, 'success');
+      await renderEntityPage(cfg, elSearch.value.trim());
+    } catch (err) {
+      UI.toast(err.message || 'Delete failed', 'danger');
+    }
+  }
+
+  // ======================================================================
+  //                       TOPBAR HANDLERS
+  // ======================================================================
+
+  function attachPrimaryAction(cfg) {
+    state.primaryHandler = () => onCreate(cfg);
+    elPrimary.addEventListener('click', state.primaryHandler);
+  }
+  function detachPrimaryAction() {
+    if (state.primaryHandler) {
+      elPrimary.removeEventListener('click', state.primaryHandler);
+      state.primaryHandler = null;
+    }
+  }
+
+  function attachSearch(cfg) {
+    state.searchHandler = () => {
+      clearTimeout(state.searchTimer);
+      state.searchTimer = setTimeout(() => {
+        const q = elSearch.value.trim();
+        renderEntityPage(cfg, q).catch((err) => UI.toast(err.message, 'danger'));
+      }, 280);
+    };
+    elSearch.addEventListener('input', state.searchHandler);
+  }
+  function detachSearch() {
+    if (state.searchHandler) {
+      elSearch.removeEventListener('input', state.searchHandler);
+      state.searchHandler = null;
+    }
+    clearTimeout(state.searchTimer);
+  }
+
+  // ======================================================================
+  //                       SIDEBAR / MOBILE
+  // ======================================================================
+
+  function wireChrome() {
+    elSidebarBtn.addEventListener('click', () => {
+      elShell.classList.toggle('sidebar-collapsed');
+    });
+    elMobileBtn.addEventListener('click', () => {
+      elShell.classList.toggle('mobile-open');
+    });
+
+    // Logout — clear the server session then go to role selection
+    const logoutBtn = document.getElementById('logout-action');
+    if (logoutBtn) logoutBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (_) {}
+      window.location.href = '/login';
+    });
+
+    // Change password
+    const cpBtn = document.getElementById('change-pw-action');
+    if (cpBtn) cpBtn.addEventListener('click', async () => {
+      const v = await UI.openForm({ title: 'Change Password', fields: [
+        { key: 'current_password', label: 'Current Password', type: 'password', required: true, full: true },
+        { key: 'new_password', label: 'New Password', type: 'password', required: true, full: true },
+        { key: 'confirm_password', label: 'Confirm New Password', type: 'password', required: true, full: true },
+      ] });
+      if (!v) return;
+      if (v.new_password !== v.confirm_password) { UI.toast('New passwords do not match', 'danger'); return; }
+      try {
+        const res = await fetch('/api/auth/change-password', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ current_password: v.current_password, new_password: v.new_password }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        UI.toast('Password updated successfully', 'success');
+      } catch (err) { UI.toast(err.message, 'danger'); }
+    });
+
+    // Close mobile sidebar when clicking outside on small screens
+    document.addEventListener('click', (e) => {
+      if (window.innerWidth >= 900) return;
+      if (!elShell.classList.contains('mobile-open')) return;
+      const sidebar = document.getElementById('sidebar');
+      if (!sidebar.contains(e.target) && !elMobileBtn.contains(e.target)) {
+        elShell.classList.remove('mobile-open');
+      }
+    });
+  }
+
+  // ======================================================================
+  //                       BOOTSTRAP
+  // ======================================================================
+
+  function init() {
+    buildSidebar();
+    wireChrome();
+    window.addEventListener('hashchange', route);
+    route(); // initial paint
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
