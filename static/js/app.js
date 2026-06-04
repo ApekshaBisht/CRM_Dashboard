@@ -319,6 +319,36 @@
     elMobileBtn.addEventListener('click', () => {
       elShell.classList.toggle('mobile-open');
     });
+
+    // Logout — clear the server session then go to role selection
+    const logoutBtn = document.getElementById('logout-action');
+    if (logoutBtn) logoutBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (_) {}
+      window.location.href = '/login';
+    });
+
+    // Change password
+    const cpBtn = document.getElementById('change-pw-action');
+    if (cpBtn) cpBtn.addEventListener('click', async () => {
+      const v = await UI.openForm({ title: 'Change Password', fields: [
+        { key: 'current_password', label: 'Current Password', type: 'password', required: true, full: true },
+        { key: 'new_password', label: 'New Password', type: 'password', required: true, full: true },
+        { key: 'confirm_password', label: 'Confirm New Password', type: 'password', required: true, full: true },
+      ] });
+      if (!v) return;
+      if (v.new_password !== v.confirm_password) { UI.toast('New passwords do not match', 'danger'); return; }
+      try {
+        const res = await fetch('/api/auth/change-password', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ current_password: v.current_password, new_password: v.new_password }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        UI.toast('Password updated successfully', 'success');
+      } catch (err) { UI.toast(err.message, 'danger'); }
+    });
+
     // Close mobile sidebar when clicking outside on small screens
     document.addEventListener('click', (e) => {
       if (window.innerWidth >= 900) return;

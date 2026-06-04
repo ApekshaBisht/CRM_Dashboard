@@ -269,9 +269,118 @@ def seed(conn):
         volunteers,
     )
 
+    # -------- Internships (for some students) --------
+    companies = ["Cyient Ltd", "TCS", "Infosys", "Tech Mahindra", "Wipro", "HCL", "Accenture"]
+    roles_list = ["Software Intern", "Data Analyst Intern", "QA Intern", "IoT Intern", "Web Dev Intern"]
+    internships = []
+    for sid in random.sample(range(1, 61), 18):
+        comp = random.choice(companies)
+        role = random.choice(roles_list)
+        start = (datetime(2026, 4, 1) + timedelta(days=random.randint(0, 30))).date().isoformat()
+        end = (datetime(2026, 7, 1) + timedelta(days=random.randint(0, 30))).date().isoformat()
+        status = random.choice(["Active", "Active", "Completed"])
+        stipend = random.choice([5000, 8000, 10000, 12000, 15000])
+        internships.append((sid, comp, role, start, end, status, stipend))
+    cur.executemany(
+        "INSERT INTO internships (student_id,company_name,role,start_date,end_date,status,stipend) VALUES (?,?,?,?,?,?,?)",
+        internships,
+    )
+
+    # -------- Feedbacks (sample) --------
+    feedbacks = [
+        ("Aarav Reddy", "Student", "Great training sessions", "The Python module was very well structured and easy to follow.", 5, "Reviewed"),
+        ("Divya Sharma", "Student", "Need more practical examples", "Would love more hands-on labs in the IoT chapter.", 4, "Pending"),
+        ("Dr. Anil Reddy", "Trainer", "Projector issue in Lab 2", "The projector in Lab 2 frequently disconnects during class.", 3, "Pending"),
+        ("Neha Kumar", "Student", "Excellent mentorship", "The trainers are very supportive and approachable.", 5, "Addressed"),
+        ("Meena Iyer", "Trainer", "Request for updated curriculum", "Soft-skills curriculum could be refreshed for 2026.", 4, "Reviewed"),
+    ]
+    cur.executemany(
+        "INSERT INTO feedbacks (provider_name,provider_role,subject,comments,rating,status) VALUES (?,?,?,?,?,?)",
+        feedbacks,
+    )
+
+    # -------- Users (authentication) --------
+    # All seeded users share the same default password for easy demo login.
+    try:
+        from werkzeug.security import generate_password_hash
+        _hash = lambda pw: generate_password_hash(pw)
+    except Exception:
+        # Fallback (should not happen since Flask installs werkzeug)
+        import hashlib
+        _hash = lambda pw: "sha256$" + hashlib.sha256(pw.encode()).hexdigest()
+
+    DEFAULT_PW = "cyient@123"
+    user_rows = []
+    # Administrators -> superadmin portal
+    for row in cur.execute("SELECT id, name, email FROM administrators").fetchall():
+        user_rows.append((row["email"], _hash(DEFAULT_PW), "superadmin", row["id"], row["name"], 0))
+    # Trainers -> trainer portal
+    for row in cur.execute("SELECT id, name, email FROM trainers").fetchall():
+        user_rows.append((row["email"], _hash(DEFAULT_PW), "trainer", row["id"], row["name"], 0))
+    # Students -> student portal
+    for row in cur.execute("SELECT id, name, email FROM students").fetchall():
+        user_rows.append((row["email"], _hash(DEFAULT_PW), "student", row["id"], row["name"], 0))
+    cur.executemany(
+        "INSERT INTO users (username,password_hash,role,ref_id,display_name,must_change_password) VALUES (?,?,?,?,?,?)",
+        user_rows,
+    )
+
+    # -------- Certificates (for completed students) --------
+    cert_rows = []
+    completed = cur.execute("SELECT id, course_id FROM students WHERE status='Completed'").fetchall()
+    for i, s in enumerate(completed, start=1):
+        cert_no = f"CYF-2026-{1000 + i}"
+        grade = random.choice(["A+", "A", "B+", "B"])
+        issued = (datetime(2026, 5, 1) + timedelta(days=random.randint(0, 20))).date().isoformat()
+        cert_rows.append((s["id"], s["course_id"], cert_no, grade, issued, "Issued"))
+    cur.executemany(
+        "INSERT INTO certificates (student_id,course_id,certificate_no,grade,issued_date,status) VALUES (?,?,?,?,?,?)",
+        cert_rows,
+    )
+
+    # -------- Tickets (sample) --------
+    tickets = [
+        (None, "Aarav Reddy", "student", "Cannot download chapter PDF", "The download button for Chapter 3 PDF is not working.", "Technical", "High", "Open", None),
+        (None, "Divya Sharma", "student", "Attendance marked wrong", "I attended on 12th May but it shows absent.", "Attendance", "Medium", "In Progress", "We are checking with your trainer."),
+        (None, "Dr. Anil Reddy", "trainer", "Need student list export", "Please add an export option for the student list.", "General", "Low", "Open", None),
+        (None, "Neha Kumar", "student", "Certificate not visible", "I completed the course but my certificate is not showing.", "Content", "High", "Resolved", "Certificate has been issued. Please check again."),
+        (None, "Meena Iyer", "trainer", "Lab software outdated", "The Python version in the lab is old, please update.", "Technical", "Urgent", "Open", None),
+    ]
+    cur.executemany(
+        "INSERT INTO tickets (raised_by_user_id,raised_by_name,raised_by_role,subject,description,category,priority,status,response) VALUES (?,?,?,?,?,?,?,?,?)",
+        tickets,
+    )
+
+    # -------- Chapter files (sample metadata -> shared sample PDF on disk) --------
+    chapter_file_rows = []
+    sample_chapters = cur.execute("SELECT id FROM chapters ORDER BY id LIMIT 6").fetchall()
+    for ch in sample_chapters:
+        chapter_file_rows.append((ch["id"], "sample_chapter_material.pdf",
+                                  "Chapter Material.pdf", "pdf", 13264, "trainer", "Dr. Anil Reddy"))
+    cur.executemany(
+        "INSERT INTO chapter_files (chapter_id,stored_name,original_name,file_type,file_size,uploaded_by_role,uploaded_by_name) VALUES (?,?,?,?,?,?,?)",
+        chapter_file_rows,
+    )
+
+    # -------- Student chapter status (progress) --------
+    scs_rows = []
+    all_chapter_ids = [r["id"] for r in cur.execute("SELECT id FROM chapters").fetchall()]
+    for sid in range(1, 61):
+        # each student has progress on a random subset of chapters
+        for cid in random.sample(all_chapter_ids, k=random.randint(3, len(all_chapter_ids))):
+            status = random.choices(["Completed", "Completed", "In Progress", "Not Started"], k=1)[0]
+            scs_rows.append((sid, cid, status))
+    cur.executemany(
+        "INSERT OR IGNORE INTO student_chapter_status (student_id,chapter_id,status) VALUES (?,?,?)",
+        scs_rows,
+    )
+
     print(f"[seed] Inserted: {len(admins)} admins, {len(projects)} projects, "
           f"{len(courses)} courses, {len(modules)} modules, {len(chapters)} chapters, "
           f"{len(skills)} skills, {len(trainers)} trainers, {len(students)} students, "
           f"{len(student_skill_rows)} student-skill rows, {len(chapter_assignments)} chapter assignments, "
           f"{len(activities)} activities, {len(sa_rows)} student-attendance rows, "
-          f"{len(ta_rows)} trainer-attendance rows, {len(volunteers)} volunteers.")
+          f"{len(ta_rows)} trainer-attendance rows, {len(volunteers)} volunteers, "
+          f"{len(internships)} internships, {len(feedbacks)} feedbacks, {len(user_rows)} users, "
+          f"{len(cert_rows)} certificates, {len(tickets)} tickets, {len(chapter_file_rows)} chapter-files, "
+          f"{len(scs_rows)} chapter-status rows.")

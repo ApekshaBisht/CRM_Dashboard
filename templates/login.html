@@ -1,140 +1,161 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cyient Foundation – {{ role_name }} Login</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/logo.svg') }}" />
-    <style>
-        body {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            background-color: var(--gray-50);
-            /* Matching existing background */
-        }
-
-        .login-wrapper {
-            width: 100%;
-            max-width: 380px;
-            padding: 20px;
-        }
-
-        .login-card {
-            background: #FFFFFF;
-            border: 1px solid var(--gray-200);
-            border-radius: var(--radius-lg);
-            padding: 32px 28px;
-            box-shadow: var(--shadow);
-        }
-
-        .login-header {
-            text-align: center;
-            margin-bottom: 28px;
-        }
-
-        .login-header img {
-            width: 48px;
-            height: 48px;
-            margin: 0 auto 12px;
-            border-radius: 8px;
-        }
-
-        .login-header h1 {
-            font-size: 20px;
-            font-weight: 700;
-            color: var(--gray-900);
-            margin: 0 0 4px 0;
-            letter-spacing: -.01em;
-        }
-
-        .login-header p {
-            font-size: 13px;
-            color: var(--gray-500);
-            margin: 0;
-        }
-
-        .login-form {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .login-actions {
-            margin-top: 12px;
-        }
-
-        .login-actions .btn {
-            width: 100%;
-            height: 42px;
-            font-size: 14px;
-            justify-content: center;
-        }
-
-        .footer-text {
-            text-align: center;
-            margin-top: 24px;
-            font-size: 11px;
-            color: var(--gray-400);
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cyient Foundation – {{ role_name }} Login</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/logo.svg') }}" />
+  <style>
+    body { display:flex; align-items:center; justify-content:center; min-height:100vh; background-color:var(--gray-50); }
+    .login-wrapper { width:100%; max-width:400px; padding:20px; }
+    .login-card { background:#FFF; border:1px solid var(--gray-200); border-radius:var(--radius-lg); padding:32px 28px; box-shadow:var(--shadow); }
+    .login-header { text-align:center; margin-bottom:24px; }
+    .login-header img { width:48px; height:48px; margin:0 auto 12px; border-radius:8px; display:block; }
+    .login-header h1 { font-size:20px; font-weight:700; color:var(--gray-900); margin:0 0 4px; letter-spacing:-.01em; }
+    .login-header p { font-size:13px; color:var(--gray-500); margin:0; }
+    .login-form { display:flex; flex-direction:column; gap:16px; }
+    .login-actions { margin-top:8px; }
+    .login-actions .btn { width:100%; height:42px; font-size:14px; justify-content:center; }
+    .login-error { background:var(--danger-bg); color:var(--danger); font-size:13px; padding:10px 12px; border-radius:var(--radius); display:none; }
+    .login-success { background:#DCFCE7; color:#166534; font-size:13px; padding:10px 12px; border-radius:var(--radius); display:none; }
+    .login-links { display:flex; justify-content:space-between; align-items:center; margin-top:4px; font-size:12.5px; }
+    .login-links a { color:var(--brand-600, #0E9DB1); cursor:pointer; text-decoration:none; }
+    .login-links a:hover { text-decoration:underline; }
+    .footer-text { text-align:center; margin-top:20px; font-size:11px; color:var(--gray-400); }
+    .hint { background:var(--gray-50); border:1px dashed var(--gray-300); border-radius:var(--radius); padding:10px 12px; font-size:11.5px; color:var(--gray-500); margin-top:16px; line-height:1.5; }
+  </style>
 </head>
-
 <body>
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="login-header">
+        <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Cyient Foundation" />
+        <h1 id="form-title">{{ role_name }} Login</h1>
+        <p id="form-sub">Sign in to Cyient Foundation CRM</p>
+      </div>
 
-    <div class="login-wrapper">
-        <div class="login-card">
-            <div class="login-header">
-                <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Cyient Foundation" />
-                <h1>{{ role_name }}</h1>
-                <p>Sign in to Cyient Foundation CRM</p>
-            </div>
+      <div class="login-error" id="err"></div>
+      <div class="login-success" id="ok"></div>
 
-            <form action="/" method="GET" class="login-form" id="loginForm">
-                <!-- Reusing the exact .field styling from styles.css -->
-                <div class="field">
-                    <label for="email">Email Address</label>
-                    <input type="email" id="email" placeholder="admin@cyient.com" required />
-                </div>
-
-                <div class="field">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" placeholder="••••••••" required />
-                </div>
-
-                <div class="login-actions">
-                    <button type="submit" class="btn btn-primary">Sign In</button>
-                </div>
-            </form>
+      <!-- LOGIN form -->
+      <form class="login-form" id="loginForm">
+        <div class="field">
+          <label for="username">Email / Username</label>
+          <input type="email" id="username" placeholder="you@cyient.org" required autocomplete="username" />
         </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password" />
+        </div>
+        <div class="login-links">
+          <a id="to-forgot">Forgot password?</a>
+          <a href="/login">← Change role</a>
+        </div>
+        <div class="login-actions">
+          <button type="submit" class="btn btn-primary" id="login-btn">Sign In</button>
+        </div>
+      </form>
 
+      <!-- FORGOT PASSWORD form -->
+      <form class="login-form" id="forgotForm" style="display:none;">
+        <div class="field">
+          <label for="f-username">Your registered email</label>
+          <input type="email" id="f-username" placeholder="you@cyient.org" autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="f-new">New password</label>
+          <input type="password" id="f-new" placeholder="At least 4 characters" autocomplete="new-password" />
+        </div>
+        <div class="field">
+          <label for="f-confirm">Confirm new password</label>
+          <input type="password" id="f-confirm" placeholder="Re-enter new password" autocomplete="new-password" />
+        </div>
+        <div class="login-links"><a id="to-login">← Back to login</a></div>
+        <div class="login-actions">
+          <button type="submit" class="btn btn-primary" id="forgot-btn">Reset Password</button>
+        </div>
+      </form>
 
+      <div class="hint">
+        <strong>Demo:</strong> default password is <code>cyient@123</code> for every account.
+        Usernames are the emails set in the system (e.g. a student's learner email,
+        a trainer's <code>@cyient.org</code> email, or an admin's
+        <code>@cyientfoundation.org</code> email).
+      </div>
     </div>
+    <div class="footer-text">© 2026 Cyient Foundation · CRM Prototype</div>
+  </div>
 
-    <script>
-        document.getElementById('loginForm').addEventListener('submit', function (e) {
-            e.preventDefault();
-            const email = document.getElementById('email').value.toLowerCase();
-            const role = "{{ role }}";
+  <script>
+    const ROLE = "{{ role }}";
+    const errBox = document.getElementById('err');
+    const okBox  = document.getElementById('ok');
+    const loginForm  = document.getElementById('loginForm');
+    const forgotForm = document.getElementById('forgotForm');
 
-            if (role === 'superadmin' && email !== 'admin@cyient.com') {
-                alert('Access Denied');
-                return;
-            }
+    function showErr(m){ errBox.textContent=m; errBox.style.display='block'; okBox.style.display='none'; }
+    function showOk(m){ okBox.textContent=m; okBox.style.display='block'; errBox.style.display='none'; }
+    function clearMsg(){ errBox.style.display='none'; okBox.style.display='none'; }
 
-            const btn = this.querySelector('.btn-primary');
-            btn.innerHTML = 'Signing in...';
-            btn.disabled = true;
-            setTimeout(() => {
-                if (role === 'student') window.location.href = '/student';
-                else if (role === 'trainer') window.location.href = '/trainer';
-                else window.location.href = '/';
-            }, 500);
+    document.getElementById('to-forgot').addEventListener('click', () => {
+      clearMsg(); loginForm.style.display='none'; forgotForm.style.display='flex';
+      document.getElementById('form-title').textContent='Reset Password';
+      document.getElementById('form-sub').textContent='Set a new password for your account';
+    });
+    document.getElementById('to-login').addEventListener('click', () => {
+      clearMsg(); forgotForm.style.display='none'; loginForm.style.display='flex';
+      document.getElementById('form-title').textContent="{{ role_name }} Login";
+      document.getElementById('form-sub').textContent='Sign in to Cyient Foundation CRM';
+    });
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault(); clearMsg();
+      const btn = document.getElementById('login-btn');
+      btn.textContent='Signing in…'; btn.disabled=true;
+      try {
+        const res = await fetch('/api/auth/login', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            username: document.getElementById('username').value.trim(),
+            password: document.getElementById('password').value,
+            role: ROLE
+          })
         });
-    </script>
-</body>
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Login failed');
+        if (data.role === 'student') location.href='/student';
+        else if (data.role === 'trainer') location.href='/trainer';
+        else location.href='/';
+      } catch (err) {
+        showErr(err.message); btn.textContent='Sign In'; btn.disabled=false;
+      }
+    });
 
+    forgotForm.addEventListener('submit', async (e) => {
+      e.preventDefault(); clearMsg();
+      const nw = document.getElementById('f-new').value;
+      const cf = document.getElementById('f-confirm').value;
+      if (nw !== cf) return showErr('Passwords do not match');
+      const btn = document.getElementById('forgot-btn');
+      btn.textContent='Resetting…'; btn.disabled=true;
+      try {
+        const res = await fetch('/api/auth/forgot', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            username: document.getElementById('f-username').value.trim(),
+            new_password: nw, role: ROLE
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Reset failed');
+        showOk(data.message || 'Password reset. You can log in now.');
+        document.getElementById('to-login').click();
+        showOk('Password reset successful. Please log in.');
+      } catch (err) {
+        showErr(err.message);
+      } finally { btn.textContent='Reset Password'; btn.disabled=false; }
+    });
+  </script>
+</body>
 </html>
