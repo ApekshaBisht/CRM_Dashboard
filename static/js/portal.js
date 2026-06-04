@@ -619,3 +619,5 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
+
+// shared SPA framework (fetch wrapper, UI helpers) with basic styling is in static/js/portal-ui.js.
