@@ -933,6 +933,31 @@ def upload_internship_file(item_id, doc_type):
 def download_internship_file(filename):
     return send_from_directory(UPLOAD_DIR, filename)
 
+@app.route("/api/internships/<int:item_id>/delete/<doc_type>", methods=["POST"])
+@require_role("superadmin", "admin")
+def delete_internship_file(item_id, doc_type):
+    allowed_types = ["offer_letter", "internship_report", "certificate", "lor"]
+    if doc_type not in allowed_types:
+        return jsonify({"error": "Invalid document type"}), 400
+
+    col_map = {
+        "offer_letter": "offer_letter_file",
+        "internship_report": "internship_report_file",
+        "certificate": "certificate_file",
+        "lor": "lor_file"
+    }
+    col = col_map[doc_type]
+    
+    old_row = fetch_one(f"SELECT {col} FROM internships WHERE id = ?", (item_id,))
+    if old_row and old_row[col]:
+        try:
+            os.remove(os.path.join(UPLOAD_DIR, old_row[col]))
+        except OSError:
+            pass
+        execute(f"UPDATE internships SET {col} = NULL WHERE id = ?", (item_id,))
+        
+    return jsonify({"ok": True}), 200
+
 
 @app.errorhandler(404)
 def not_found(e):

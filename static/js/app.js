@@ -313,7 +313,21 @@
                 <div style="flex:1;">
                   <h4 style="margin:0 0 5px; font-size:14px; color:#1e293b;">${UI.escapeHtml(d.label)}</h4>
                   ${d.file 
-                    ? `<a href="/api/internships/files/${d.file}" target="_blank" style="font-size:12px; color:var(--primary); text-decoration:none;">📄 ${d.file}</a>` 
+                    ? `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                         <span style="font-size:12px; color:var(--gray-600); max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${d.file}">📄 ${d.file}</span>
+                         <div style="display:flex; gap: 4px; align-items:center;">
+                           <a href="/api/internships/files/${d.file}" target="_blank" class="btn btn-sm btn-icon" title="View" style="color:var(--primary);"
+                              onclick="if(!['pdf','png','jpg','jpeg','gif','svg','mp4','webm','txt'].includes('${d.file}'.split('.').pop().toLowerCase())) { alert('This file format (e.g. Word/Excel) cannot be previewed directly in the browser and will be downloaded instead.'); }">
+                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                           </a>
+                           <a href="/api/internships/files/${d.file}" download="${d.file}" class="btn btn-sm btn-icon" title="Download" style="color:var(--primary);">
+                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                           </a>
+                           <button type="button" class="btn btn-sm btn-icon btn-icon-danger" title="Delete" data-delete-doc="${d.key}">
+                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                           </button>
+                         </div>
+                       </div>` 
                     : `<span style="font-size:12px; color:#94a3b8;">No file uploaded</span>`}
                 </div>
                 <div style="margin-left:15px;">
@@ -356,6 +370,23 @@
           UI.toast('Upload successful', 'success');
           overlay.remove();
           onDocs(cfg, id); // refresh modal
+        } catch (err) {
+          UI.toast(err.message, 'danger');
+        }
+      });
+    });
+
+    overlay.querySelectorAll('[data-delete-doc]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const docType = btn.dataset.deleteDoc;
+        const ok = await UI.confirmAction('Delete this document?', 'Delete');
+        if (!ok) return;
+        try {
+          const res = await fetch(`/api/internships/${id}/delete/${docType}`, { method: 'POST' });
+          if (!res.ok) throw new Error('Delete failed');
+          UI.toast('Document deleted', 'success');
+          overlay.remove();
+          onDocs(cfg, id);
         } catch (err) {
           UI.toast(err.message, 'danger');
         }
@@ -451,6 +482,11 @@
     const notifBtn = document.getElementById('notifications-action');
     if (notifBtn) {
       notifBtn.addEventListener('click', async () => {
+        // Clear badge when opened and store read timestamp
+        const badge = document.getElementById('notif-badge');
+        if (badge) badge.hidden = true;
+        localStorage.setItem('lastReadNotifsTime', Date.now());
+
         const overlay = document.createElement('div');
         overlay.className = 'modal-backdrop';
         overlay.innerHTML = `
@@ -510,7 +546,6 @@
           } else {
             list.innerHTML = items.map(item => `
               <li style="padding: 12px; border-radius: 6px; background: #f8fafc; border: 1px solid #e2e8f0; display: flex; gap: 12px; align-items: flex-start;">
-                <div style="font-size: 20px;">${item.icon}</div>
                 <div>
                   <div style="font-weight: 600; font-size: 14px; color: #1e293b;">${UI.escapeHtml(item.title)}</div>
                   <div style="font-size: 13px; color: #64748b; margin-top: 4px;">${UI.escapeHtml(item.desc)}</div>
@@ -526,6 +561,43 @@
     }
   }
 
+  async function updateNotifBadge() {
+    const badge = document.getElementById('notif-badge');
+    if (!badge) return;
+    try {
+      const [tickets, feedbacks] = await Promise.all([
+        API.list('tickets'),
+        API.list('feedbacks')
+      ]);
+      const openTickets = tickets.filter(t => t.status === 'Open' || t.status === 'In Progress');
+      const pendingFeedbacks = feedbacks.filter(f => f.status === 'Pending');
+      const allItems = [...openTickets, ...pendingFeedbacks];
+      
+      const lastRead = localStorage.getItem('lastReadNotifsTime');
+      let unreadCount = 0;
+      
+      if (!lastRead) {
+        unreadCount = allItems.length;
+      } else {
+        const readTime = parseInt(lastRead, 10);
+        unreadCount = allItems.filter(item => {
+          if (!item.created_at) return true; // if no timestamp, assume unread
+          const itemTime = new Date(item.created_at.replace(' ', 'T') + 'Z').getTime();
+          return itemTime > readTime;
+        }).length;
+      }
+      
+      if (unreadCount > 0) {
+        badge.textContent = unreadCount;
+        badge.hidden = false;
+      } else {
+        badge.hidden = true;
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+
   // ======================================================================
   //                       BOOTSTRAP
   // ======================================================================
@@ -533,6 +605,7 @@
   function init() {
     buildSidebar();
     wireChrome();
+    updateNotifBadge();
     window.addEventListener('hashchange', route);
     route(); // initial paint
   }
