@@ -60,3 +60,5 @@ def rows_to_dicts(rows):
 
 def row_to_dict(row):
     return dict(row) if row else None
+
+#added notification bell icon in superadmin portal.
