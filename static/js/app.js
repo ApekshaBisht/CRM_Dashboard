@@ -49,8 +49,9 @@
         return `<div class="nav-heading">${UI.escapeHtml(item.label)}</div>`;
       }
       const icon = ICONS[item.icon] || '';
+      const idAttr = item.id ? ` id="${item.id}"` : '';
       return `
-        <button class="nav-item" data-key="${item.key}" type="button">
+        <button class="nav-item" data-key="${item.key}"${idAttr} type="button">
           <span class="nav-icon">${icon}</span>
           <span class="nav-label">${UI.escapeHtml(item.label)}</span>
         </button>
@@ -61,6 +62,10 @@
     elNav.querySelectorAll('.nav-item').forEach((btn) => {
       btn.addEventListener('click', () => {
         const key = btn.dataset.key;
+        if (key === 'change_password') {
+          elShell.classList.remove('mobile-open');
+          return;
+        }
         location.hash = `#${key}`;
         // also close the mobile sidebar after a tap
         elShell.classList.remove('mobile-open');
@@ -441,6 +446,84 @@
         elShell.classList.remove('mobile-open');
       }
     });
+
+    // Notifications
+    const notifBtn = document.getElementById('notifications-action');
+    if (notifBtn) {
+      notifBtn.addEventListener('click', async () => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-backdrop';
+        overlay.innerHTML = `
+          <div class="modal" style="max-width: 500px;">
+            <header class="modal-header">
+              <h3>Notifications</h3>
+              <button class="modal-close" title="Close">×</button>
+            </header>
+            <div class="modal-body" style="padding: 20px; max-height: 60vh; overflow-y: auto;">
+              <div id="notif-loading" style="text-align: center; color: var(--gray-500);">Loading...</div>
+              <ul id="notif-list" style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px;"></ul>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const closeBtn = overlay.querySelector('.modal-close');
+        const closeOverlay = (e) => {
+          if (e.target === overlay || e.target === closeBtn) overlay.remove();
+        };
+        overlay.addEventListener('click', closeOverlay);
+
+        try {
+          const [tickets, feedbacks] = await Promise.all([
+            API.list('tickets'),
+            API.list('feedbacks')
+          ]);
+
+          const openTickets = tickets.filter(t => t.status === 'Open' || t.status === 'In Progress');
+          const pendingFeedbacks = feedbacks.filter(f => f.status === 'Pending');
+
+          const items = [];
+          openTickets.forEach(t => {
+            items.push({
+              title: `Ticket: ${t.subject}`,
+              desc: `Raised by ${t.raised_by_name} (${t.priority} priority)`,
+              time: t.id,
+              icon: '🎫'
+            });
+          });
+          pendingFeedbacks.forEach(f => {
+            items.push({
+              title: `Feedback: ${f.subject}`,
+              desc: `From ${f.provider_name} (Rating: ${f.rating})`,
+              time: f.id,
+              icon: '📝'
+            });
+          });
+
+          items.sort((a, b) => b.time - a.time);
+
+          overlay.querySelector('#notif-loading').remove();
+          const list = overlay.querySelector('#notif-list');
+
+          if (items.length === 0) {
+            list.innerHTML = `<li style="text-align: center; color: var(--gray-500); padding: 20px;">No new notifications</li>`;
+          } else {
+            list.innerHTML = items.map(item => `
+              <li style="padding: 12px; border-radius: 6px; background: #f8fafc; border: 1px solid #e2e8f0; display: flex; gap: 12px; align-items: flex-start;">
+                <div style="font-size: 20px;">${item.icon}</div>
+                <div>
+                  <div style="font-weight: 600; font-size: 14px; color: #1e293b;">${UI.escapeHtml(item.title)}</div>
+                  <div style="font-size: 13px; color: #64748b; margin-top: 4px;">${UI.escapeHtml(item.desc)}</div>
+                </div>
+              </li>
+            `).join('');
+          }
+        } catch (err) {
+          const loader = overlay.querySelector('#notif-loading');
+          if (loader) loader.textContent = 'Failed to load notifications.';
+        }
+      });
+    }
   }
 
   // ======================================================================

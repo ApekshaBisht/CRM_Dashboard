@@ -375,27 +375,51 @@ def dashboard():
     """Aggregate counters, project status breakdown and recent attendance trend."""
     db = get_db()
 
+    row = db.execute("""
+        SELECT 
+            (SELECT COUNT(*) FROM projects),
+            (SELECT COUNT(*) FROM projects WHERE status='Active'),
+            (SELECT COUNT(*) FROM courses),
+            (SELECT COUNT(*) FROM modules),
+            (SELECT COUNT(*) FROM chapters),
+            (SELECT COUNT(*) FROM students),
+            (SELECT COUNT(*) FROM students WHERE status='Active'),
+            (SELECT COUNT(*) FROM trainers),
+            (SELECT COUNT(*) FROM trainers WHERE status='Active'),
+            (SELECT COUNT(*) FROM administrators),
+            (SELECT COUNT(*) FROM skills),
+            (SELECT COUNT(*) FROM activities),
+            (SELECT COUNT(*) FROM chapter_assignments),
+            (SELECT COUNT(*) FROM volunteers),
+            (SELECT COUNT(*) FROM volunteers WHERE status='Active'),
+            (SELECT COUNT(*) FROM internships),
+            (SELECT COUNT(*) FROM feedbacks),
+            (SELECT COUNT(*) FROM tickets),
+            (SELECT COUNT(*) FROM tickets WHERE status IN ('Open','In Progress')),
+            (SELECT COUNT(*) FROM certificates)
+    """).fetchone()
+
     counts = {
-        "projects": db.execute("SELECT COUNT(*) FROM projects").fetchone()[0],
-        "active_projects": db.execute("SELECT COUNT(*) FROM projects WHERE status='Active'").fetchone()[0],
-        "courses": db.execute("SELECT COUNT(*) FROM courses").fetchone()[0],
-        "modules": db.execute("SELECT COUNT(*) FROM modules").fetchone()[0],
-        "chapters": db.execute("SELECT COUNT(*) FROM chapters").fetchone()[0],
-        "students": db.execute("SELECT COUNT(*) FROM students").fetchone()[0],
-        "active_students": db.execute("SELECT COUNT(*) FROM students WHERE status='Active'").fetchone()[0],
-        "trainers": db.execute("SELECT COUNT(*) FROM trainers").fetchone()[0],
-        "active_trainers": db.execute("SELECT COUNT(*) FROM trainers WHERE status='Active'").fetchone()[0],
-        "administrators": db.execute("SELECT COUNT(*) FROM administrators").fetchone()[0],
-        "skills": db.execute("SELECT COUNT(*) FROM skills").fetchone()[0],
-        "activities": db.execute("SELECT COUNT(*) FROM activities").fetchone()[0],
-        "chapter_assignments": db.execute("SELECT COUNT(*) FROM chapter_assignments").fetchone()[0],
-        "volunteers": db.execute("SELECT COUNT(*) FROM volunteers").fetchone()[0],
-        "active_volunteers": db.execute("SELECT COUNT(*) FROM volunteers WHERE status='Active'").fetchone()[0],
-        "internships": db.execute("SELECT COUNT(*) FROM internships").fetchone()[0],
-        "feedbacks": db.execute("SELECT COUNT(*) FROM feedbacks").fetchone()[0],
-        "tickets": db.execute("SELECT COUNT(*) FROM tickets").fetchone()[0],
-        "open_tickets": db.execute("SELECT COUNT(*) FROM tickets WHERE status IN ('Open','In Progress')").fetchone()[0],
-        "certificates": db.execute("SELECT COUNT(*) FROM certificates").fetchone()[0],
+        "projects": row[0],
+        "active_projects": row[1],
+        "courses": row[2],
+        "modules": row[3],
+        "chapters": row[4],
+        "students": row[5],
+        "active_students": row[6],
+        "trainers": row[7],
+        "active_trainers": row[8],
+        "administrators": row[9],
+        "skills": row[10],
+        "activities": row[11],
+        "chapter_assignments": row[12],
+        "volunteers": row[13],
+        "active_volunteers": row[14],
+        "internships": row[15],
+        "feedbacks": row[16],
+        "tickets": row[17],
+        "open_tickets": row[18],
+        "certificates": row[19],
     }
 
     # ----- Project status breakdown -----
@@ -439,7 +463,7 @@ def dashboard():
         SELECT a.id, a.name, a.activity_type, a.activity_date, a.participants_count,
                p.name AS project_name
         FROM activities a LEFT JOIN projects p ON a.project_id = p.id
-        ORDER BY date(a.activity_date) DESC LIMIT 6
+        ORDER BY a.activity_date DESC LIMIT 6
     """).fetchall())
 
     return jsonify({
