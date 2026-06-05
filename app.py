@@ -639,6 +639,30 @@ def me_tickets():
     return jsonify(rows)
 
 
+@app.route("/api/me/tickets/<int:item_id>", methods=["PUT", "DELETE"])
+def me_tickets_item(item_id):
+    u = current_user()
+    if not u:
+        return jsonify({"error": "not authenticated"}), 401
+    
+    # Verify ownership
+    ticket = fetch_one("SELECT * FROM tickets WHERE id = ? AND raised_by_user_id = ?", (item_id, u["id"]))
+    if not ticket:
+        abort(404, description="Ticket not found or unauthorized")
+
+    if request.method == "DELETE":
+        execute("DELETE FROM tickets WHERE id = ?", (item_id,))
+        return jsonify({"ok": True})
+    
+    # PUT
+    b = json_body()
+    execute(
+        "UPDATE tickets SET subject = ?, category = ?, priority = ?, description = ?, updated_at = datetime('now') WHERE id = ?",
+        (b.get("subject", ticket["subject"]), b.get("category", ticket["category"]), b.get("priority", ticket["priority"]), b.get("description", ticket["description"]), item_id)
+    )
+    return jsonify({"ok": True})
+
+
 @app.route("/api/me/feedback", methods=["GET", "POST"])
 def me_feedback():
     u = current_user()
@@ -655,6 +679,30 @@ def me_feedback():
         return jsonify({"ok": True}), 201
     rows = fetch_all("SELECT * FROM feedbacks WHERE provider_name = ? ORDER BY id DESC", (u["display_name"],))
     return jsonify(rows)
+
+
+@app.route("/api/me/feedback/<int:item_id>", methods=["PUT", "DELETE"])
+def me_feedback_item(item_id):
+    u = current_user()
+    if not u:
+        return jsonify({"error": "not authenticated"}), 401
+    
+    # Verify ownership
+    feedback = fetch_one("SELECT * FROM feedbacks WHERE id = ? AND provider_name = ?", (item_id, u["display_name"]))
+    if not feedback:
+        abort(404, description="Feedback not found or unauthorized")
+
+    if request.method == "DELETE":
+        execute("DELETE FROM feedbacks WHERE id = ?", (item_id,))
+        return jsonify({"ok": True})
+    
+    # PUT
+    b = json_body()
+    execute(
+        "UPDATE feedbacks SET subject = ?, comments = ?, rating = ? WHERE id = ?",
+        (b.get("subject", feedback["subject"]), b.get("comments", feedback["comments"]), b.get("rating", feedback["rating"]), item_id)
+    )
+    return jsonify({"ok": True})
 
 
 # ---------------------------------------------------------------------------

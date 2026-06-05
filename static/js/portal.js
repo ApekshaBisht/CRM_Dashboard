@@ -332,11 +332,27 @@
           <div class="table-toolbar"><div class="table-meta">
             <span class="badge badge-info">${rows.length} records</span></div></div>
           <div class="table-wrap"><table class="data-table">
-            <thead><tr><th>Date</th><th>Student</th><th>Course</th><th>Session</th><th>Status</th></tr></thead>
+            <thead><tr><th>Date</th><th>Student</th><th>Course</th><th>Session</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>${rows.slice(0, 200).map((r) => `
               <tr><td>${UI.fmtDate(r.attendance_date)}</td><td>${esc(r.student_name) || dash}</td>
-              <td>${esc(r.course_name) || dash}</td><td>${esc(r.session)}</td><td>${UI.badge(r.status)}</td></tr>`).join('')}</tbody>
+              <td>${esc(r.course_name) || dash}</td><td>${esc(r.session)}</td><td>${UI.badge(r.status)}</td>
+              <td><button class="btn btn-icon btn-ghost" data-edit-att="${r.id}" title="Edit">${I.edit}</button></td></tr>`).join('')}</tbody>
           </table></div></div>`;
+          
+      elContent.querySelectorAll('[data-edit-att]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.editAtt;
+          const att = rows.find(r => r.id == id);
+          const v = await UI.openForm({ title: 'Edit Attendance', values: att, fields: [
+            { key: 'session', label: 'Session', type: 'select', options: ['Morning', 'Afternoon', 'Full Day'] },
+            { key: 'status', label: 'Status', type: 'select', options: ['Present', 'Absent', 'Late', 'Excused'] },
+            { key: 'remarks', label: 'Remarks', full: true }
+          ] });
+          if (!v) return;
+          try { await req(`/api/student_attendance/${id}`, { method: 'PUT', body: v }); UI.toast('Attendance updated', 'success'); TrainerPages.attendance(); }
+          catch (e) { UI.toast(e.message, 'danger'); }
+        });
+      });
     },
 
     async certificates() {
@@ -378,12 +394,19 @@
           <div class="table-actions"><button class="btn btn-primary btn-sm" id="raise-ticket">+ Raise Ticket</button></div>
         </div>
         <div class="table-wrap"><table class="data-table">
-          <thead><tr><th>#</th><th>Subject</th><th>Category</th><th>Priority</th><th>Status</th><th>Response</th><th>Raised</th></tr></thead>
+          <thead><tr><th>#</th><th>Subject</th><th>Category</th><th>Priority</th><th>Status</th><th>Response</th><th>Raised</th><th>Actions</th></tr></thead>
           <tbody>${rows.map((r) => `
             <tr><td>#${r.id}</td><td><strong>${esc(r.subject)}</strong></td><td>${esc(r.category)}</td>
             <td>${UI.badge(r.priority)}</td><td>${UI.badge(r.status)}</td>
-            <td>${esc(r.response) || dash}</td><td>${UI.fmtDate(r.created_at)}</td></tr>`).join('')}</tbody>
+            <td>${esc(r.response) || dash}</td><td>${UI.fmtDate(r.created_at)}</td>
+            <td>
+              <div class="row-actions">
+                <button class="btn btn-icon btn-ghost" data-edit-ticket="${r.id}" title="Edit">${I.edit}</button>
+                <button class="btn btn-icon btn-ghost btn-icon-danger" data-delete-ticket="${r.id}" title="Delete">${I.trash}</button>
+              </div>
+            </td></tr>`).join('')}</tbody>
         </table></div></div>`;
+        
     document.getElementById('raise-ticket').addEventListener('click', async () => {
       const v = await UI.openForm({ title: 'Raise a Ticket', fields: [
         { key: 'subject', label: 'Subject', required: true, full: true },
@@ -394,6 +417,31 @@
       if (!v) return;
       try { await req('/api/me/tickets', { method: 'POST', body: v }); UI.toast('Ticket raised', 'success'); ticketsPage(); }
       catch (e) { UI.toast(e.message, 'danger'); }
+    });
+
+    elContent.querySelectorAll('[data-edit-ticket]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.editTicket;
+        const ticket = rows.find(r => r.id == id);
+        const v = await UI.openForm({ title: 'Edit Ticket', values: ticket, fields: [
+          { key: 'subject', label: 'Subject', required: true, full: true },
+          { key: 'category', label: 'Category', type: 'select', options: ['General', 'Technical', 'Content', 'Attendance', 'Other'] },
+          { key: 'priority', label: 'Priority', type: 'select', required: true, options: ['Low', 'Medium', 'High', 'Urgent'] },
+          { key: 'description', label: 'Description', type: 'textarea', full: true },
+        ] });
+        if (!v) return;
+        try { await req(`/api/me/tickets/${id}`, { method: 'PUT', body: v }); UI.toast('Ticket updated', 'success'); ticketsPage(); }
+        catch (e) { UI.toast(e.message, 'danger'); }
+      });
+    });
+
+    elContent.querySelectorAll('[data-delete-ticket]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.deleteTicket;
+        if (!(await UI.confirmAction('Delete this ticket?', 'Delete'))) return;
+        try { await req(`/api/me/tickets/${id}`, { method: 'DELETE' }); UI.toast('Ticket deleted', 'success'); ticketsPage(); }
+        catch (e) { UI.toast(e.message, 'danger'); }
+      });
     });
   }
 
@@ -406,11 +454,18 @@
           <div class="table-actions"><button class="btn btn-primary btn-sm" id="give-feedback">+ Give Feedback</button></div>
         </div>
         <div class="table-wrap"><table class="data-table">
-          <thead><tr><th>Subject</th><th>Comments</th><th>Rating</th><th>Status</th><th>Date</th></tr></thead>
+          <thead><tr><th>Subject</th><th>Comments</th><th>Rating</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
           <tbody>${rows.map((r) => `
             <tr><td><strong>${esc(r.subject)}</strong></td><td>${esc(r.comments)}</td>
-            <td>${'★'.repeat(r.rating || 0)}</td><td>${UI.badge(r.status)}</td><td>${UI.fmtDate(r.created_at)}</td></tr>`).join('')}</tbody>
+            <td>${'★'.repeat(r.rating || 0)}</td><td>${UI.badge(r.status)}</td><td>${UI.fmtDate(r.created_at)}</td>
+            <td>
+              <div class="row-actions">
+                <button class="btn btn-icon btn-ghost" data-edit-feedback="${r.id}" title="Edit">${I.edit}</button>
+                <button class="btn btn-icon btn-ghost btn-icon-danger" data-delete-feedback="${r.id}" title="Delete">${I.trash}</button>
+              </div>
+            </td></tr>`).join('')}</tbody>
         </table></div></div>`;
+        
     document.getElementById('give-feedback').addEventListener('click', async () => {
       const v = await UI.openForm({ title: 'Submit Feedback', fields: [
         { key: 'subject', label: 'Subject', required: true, full: true },
@@ -421,6 +476,31 @@
       v.rating = Number(v.rating || 5);
       try { await req('/api/me/feedback', { method: 'POST', body: v }); UI.toast('Feedback submitted', 'success'); feedbackPage(); }
       catch (e) { UI.toast(e.message, 'danger'); }
+    });
+
+    elContent.querySelectorAll('[data-edit-feedback]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.editFeedback;
+        const feedback = rows.find(r => r.id == id);
+        const v = await UI.openForm({ title: 'Edit Feedback', values: feedback, fields: [
+          { key: 'subject', label: 'Subject', required: true, full: true },
+          { key: 'comments', label: 'Your feedback', type: 'textarea', required: true, full: true },
+          { key: 'rating', label: 'Rating (1-5)', type: 'number', min: 1, max: 5 },
+        ] });
+        if (!v) return;
+        v.rating = Number(v.rating || 5);
+        try { await req(`/api/me/feedback/${id}`, { method: 'PUT', body: v }); UI.toast('Feedback updated', 'success'); feedbackPage(); }
+        catch (e) { UI.toast(e.message, 'danger'); }
+      });
+    });
+
+    elContent.querySelectorAll('[data-delete-feedback]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.deleteFeedback;
+        if (!(await UI.confirmAction('Delete this feedback?', 'Delete'))) return;
+        try { await req(`/api/me/feedback/${id}`, { method: 'DELETE' }); UI.toast('Feedback deleted', 'success'); feedbackPage(); }
+        catch (e) { UI.toast(e.message, 'danger'); }
+      });
     });
   }
 
