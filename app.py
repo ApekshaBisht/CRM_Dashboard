@@ -336,7 +336,7 @@ build_crud(
 
 build_crud(
     "internships", "internships",
-    fields=["student_id", "company_name", "role", "start_date", "end_date", "status", "stipend",
+    fields=["student_id", "company_name", "role", "start_date", "end_date", "status", "payment_type", "stipend",
             "visitor_card_id", "reporting_manager", "offer_letter_file", "internship_report_file",
             "certificate_file", "lor_file"],
     search_fields=["company_name", "role", "internships.status", "visitor_card_id", "students.name", "students.institution", "students.email", "students.phone"],

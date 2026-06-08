@@ -192,6 +192,7 @@ CREATE TABLE internships (
     start_date TEXT,
     end_date TEXT,
     status TEXT NOT NULL DEFAULT 'Active', -- Active / Inactive / Completed
+    payment_type TEXT DEFAULT 'Unpaid', -- Paid / Unpaid
     stipend REAL DEFAULT 0,
     visitor_card_id TEXT,
     reporting_manager TEXT,

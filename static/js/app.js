@@ -607,6 +607,35 @@
     wireChrome();
     updateNotifBadge();
     window.addEventListener('hashchange', route);
+    
+    // Dynamic logic for Internship Payment Type
+    const toggleStipend = () => {
+      const paymentType = document.getElementById('f-payment_type');
+      const stipendInput = document.getElementById('f-stipend');
+      if (paymentType && stipendInput) {
+        const wrapper = stipendInput.closest('.field');
+        if (paymentType.value === 'Unpaid') {
+          stipendInput.value = '';
+          if (wrapper) wrapper.style.display = 'none';
+        } else {
+          if (wrapper) wrapper.style.display = 'block';
+        }
+      }
+    };
+    document.addEventListener('change', (e) => {
+      if (e.target && e.target.id === 'f-payment_type') toggleStipend();
+    });
+    // Use mutation observer to detect when modal is added
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((m) => {
+        if (m.addedNodes.length) {
+          const pt = document.getElementById('f-payment_type');
+          if (pt) toggleStipend();
+        }
+      });
+    });
+    observer.observe(document.body, { childList: true });
+
     route(); // initial paint
   }
 
