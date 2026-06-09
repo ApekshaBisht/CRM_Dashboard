@@ -484,7 +484,10 @@
       notifBtn.addEventListener('click', async () => {
         // Clear badge when opened and store read timestamp
         const badge = document.getElementById('notif-badge');
-        if (badge) badge.hidden = true;
+        if (badge) {
+          badge.hidden = true;
+          badge.style.display = 'none';
+        }
         localStorage.setItem('lastReadNotifsTime', Date.now());
 
         const overlay = document.createElement('div');
@@ -521,18 +524,18 @@
           const items = [];
           openTickets.forEach(t => {
             items.push({
+              type: 'tickets',
               title: `Ticket: ${t.subject}`,
               desc: `Raised by ${t.raised_by_name} (${t.priority} priority)`,
-              time: t.id,
-              icon: '🎫'
+              time: t.id
             });
           });
           pendingFeedbacks.forEach(f => {
             items.push({
+              type: 'feedbacks',
               title: `Feedback: ${f.subject}`,
               desc: `From ${f.provider_name} (Rating: ${f.rating})`,
-              time: f.id,
-              icon: '📝'
+              time: f.id
             });
           });
 
@@ -545,7 +548,7 @@
             list.innerHTML = `<li style="text-align: center; color: var(--gray-500); padding: 20px;">No new notifications</li>`;
           } else {
             list.innerHTML = items.map(item => `
-              <li style="padding: 12px; border-radius: 6px; background: #f8fafc; border: 1px solid #e2e8f0; display: flex; gap: 12px; align-items: flex-start;">
+              <li style="padding: 12px; border-radius: 6px; background: #f8fafc; border: 1px solid #e2e8f0; display: flex; gap: 12px; align-items: flex-start; cursor: pointer; transition: background .15s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'" onclick="location.hash='#${item.type}'; document.body.removeChild(this.closest('.modal-backdrop'));">
                 <div>
                   <div style="font-weight: 600; font-size: 14px; color: #1e293b;">${UI.escapeHtml(item.title)}</div>
                   <div style="font-size: 13px; color: #64748b; margin-top: 4px;">${UI.escapeHtml(item.desc)}</div>
@@ -590,8 +593,10 @@
       if (unreadCount > 0) {
         badge.textContent = unreadCount;
         badge.hidden = false;
+        badge.style.display = 'flex';
       } else {
         badge.hidden = true;
+        badge.style.display = 'none';
       }
     } catch (err) {
       // ignore

@@ -678,6 +678,45 @@
     }
   }
 
+  // ---- topbar / notifications --------------------------------------------
+  async function updateNotifBadge() {
+    const badge = document.getElementById('notif-badge');
+    if (!badge) return;
+    try {
+      const [tickets, feedbacks] = await Promise.all([
+        req('/api/me/tickets'),
+        req('/api/me/feedback')
+      ]);
+      const resolvedTickets = tickets.filter(t => t.status === 'Resolved' || t.status === 'Closed');
+      const resolvedFeedbacks = feedbacks.filter(f => f.status === 'Resolved' || f.status === 'Addressed' || f.status === 'Reviewed');
+      const allItems = [...resolvedTickets, ...resolvedFeedbacks];
+      
+      const lastRead = localStorage.getItem('lastReadNotifsTime_' + ROLE);
+      let unreadCount = 0;
+      
+      if (!lastRead) {
+        unreadCount = allItems.length;
+      } else {
+        const readTime = parseInt(lastRead, 10);
+        unreadCount = allItems.filter(item => {
+          const timeStr = item.updated_at || item.created_at;
+          if (!timeStr) return true;
+          const itemTime = new Date(timeStr.replace(' ', 'T') + 'Z').getTime();
+          return itemTime > readTime;
+        }).length;
+      }
+      
+      if (unreadCount > 0) {
+        badge.textContent = unreadCount;
+        badge.hidden = false;
+        badge.style.display = 'flex';
+      } else {
+        badge.hidden = true;
+        badge.style.display = 'none';
+      }
+    } catch (err) {}
+  }
+
   // ---- logout ------------------------------------------------------------
   function wireLogout() {
     const btn = document.getElementById('logout-action');
@@ -688,11 +727,99 @@
     });
     const mob = document.getElementById('mobile-menu');
     if (mob) mob.addEventListener('click', () => elShell.classList.toggle('mobile-open'));
+
+    const notifBtn = document.getElementById('notifications-action');
+    if (notifBtn) {
+      notifBtn.addEventListener('click', async () => {
+        const badge = document.getElementById('notif-badge');
+        if (badge) {
+          badge.hidden = true;
+          badge.style.display = 'none';
+        }
+        localStorage.setItem('lastReadNotifsTime_' + ROLE, Date.now());
+
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-backdrop';
+        overlay.innerHTML = `
+          <div class="modal" style="max-width: 500px;">
+            <header class="modal-header">
+              <h3>Notifications</h3>
+              <button class="modal-close" title="Close">×</button>
+            </header>
+            <div class="modal-body" style="padding: 20px; max-height: 60vh; overflow-y: auto;">
+              <div id="notif-loading" style="text-align: center; color: var(--gray-500);">Loading...</div>
+              <ul id="notif-list" style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px;"></ul>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const closeBtn = overlay.querySelector('.modal-close');
+        const closeOverlay = (e) => {
+          if (e.target === overlay || e.target === closeBtn) overlay.remove();
+        };
+        overlay.addEventListener('click', closeOverlay);
+
+        try {
+          const [tickets, feedbacks] = await Promise.all([
+            req('/api/me/tickets'),
+            req('/api/me/feedback')
+          ]);
+
+          const resolvedTickets = tickets.filter(t => t.status === 'Resolved' || t.status === 'Closed');
+          const resolvedFeedbacks = feedbacks.filter(f => f.status === 'Resolved' || f.status === 'Addressed' || f.status === 'Reviewed');
+
+          const items = [];
+          resolvedTickets.forEach(t => {
+            items.push({
+              type: 'tickets',
+              title: `Ticket ${t.status}: ${t.subject}`,
+              desc: `Your ticket has been ${t.status}.`,
+              timeStr: t.updated_at || t.created_at
+            });
+          });
+          resolvedFeedbacks.forEach(f => {
+            items.push({
+              type: 'feedback',
+              title: `Feedback ${f.status}: ${f.subject}`,
+              desc: `Your feedback has been ${f.status}.`,
+              timeStr: f.updated_at || f.created_at
+            });
+          });
+
+          items.sort((a, b) => {
+             const tA = new Date((a.timeStr || '').replace(' ', 'T') + 'Z').getTime() || 0;
+             const tB = new Date((b.timeStr || '').replace(' ', 'T') + 'Z').getTime() || 0;
+             return tB - tA;
+          });
+
+          overlay.querySelector('#notif-loading').remove();
+          const list = overlay.querySelector('#notif-list');
+
+          if (items.length === 0) {
+            list.innerHTML = `<li style="text-align: center; color: var(--gray-500); padding: 20px;">No new notifications</li>`;
+          } else {
+            list.innerHTML = items.map(item => `
+              <li style="padding: 12px; border-radius: 6px; background: #f8fafc; border: 1px solid #e2e8f0; display: flex; gap: 12px; align-items: flex-start; cursor: pointer; transition: background .15s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'" onclick="location.hash='#${item.type}'; document.body.removeChild(this.closest('.modal-backdrop'));">
+                <div>
+                  <div style="font-weight: 600; font-size: 14px; color: #1e293b;">${UI.escapeHtml(item.title)}</div>
+                  <div style="font-size: 13px; color: #64748b; margin-top: 4px;">${UI.escapeHtml(item.desc)}</div>
+                </div>
+              </li>
+            `).join('');
+          }
+        } catch (err) {
+          const loader = overlay.querySelector('#notif-loading');
+          if (loader) loader.textContent = 'Failed to load notifications.';
+        }
+      });
+    }
   }
 
   function init() {
     buildSidebar();
     wireLogout();
+    updateNotifBadge();
     window.addEventListener('hashchange', route);
     route();
   }
