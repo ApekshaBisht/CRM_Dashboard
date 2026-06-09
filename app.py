@@ -674,7 +674,7 @@ def me_feedback():
         execute(
             "INSERT INTO feedbacks (provider_name,provider_role,subject,comments,rating,status) "
             "VALUES (?,?,?,?,?, 'Pending')",
-            (u["display_name"], role_name, b.get("subject"), b.get("comments"), b.get("rating", 0)),
+            (u["display_name"], role_name, b.get("subject"), b.get("comments"), b.get("rating", 5)),
         )
         return jsonify({"ok": True}), 201
     rows = fetch_all("SELECT * FROM feedbacks WHERE provider_name = ? ORDER BY id DESC", (u["display_name"],))
