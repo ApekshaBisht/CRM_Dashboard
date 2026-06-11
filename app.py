@@ -1232,4 +1232,4 @@ if __name__ == "__main__":
     # debug=True is fine for local development; turn off for production.
     app.run(host="127.0.0.1", port=5000, debug=True)
 
-#app.py file is the main backend file that integrates the database to the frontend.
+#app.py file is the main backend file that integrates the database to the frontend.The bulk upload option is also included.
