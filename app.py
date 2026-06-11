@@ -807,6 +807,100 @@ def student_certificates():
     return jsonify(rows)
 
 
+@app.route("/api/student/certificates/<int:cert_id>/download", methods=["GET"])
+@require_role("student")
+def download_student_certificate(cert_id):
+    """Generate and download a certificate as PDF."""
+    u = current_user()
+    cert = fetch_one("""SELECT ce.*, c.name AS course_name, s.name AS student_name
+                        FROM certificates ce 
+                        LEFT JOIN courses c ON ce.course_id = c.id
+                        LEFT JOIN students s ON ce.student_id = s.id
+                        WHERE ce.id = ? AND ce.student_id = ?""", 
+                     (cert_id, u["ref_id"]))
+    if not cert:
+        abort(404, description="Certificate not found or unauthorized")
+    
+    # Generate a simple PDF certificate
+    student_name = cert["student_name"] or "Student"
+    course_name = cert["course_name"] or "Course"
+    cert_no = cert["certificate_no"] or f"CERT-{cert_id}"
+    grade = cert["grade"] or "N/A"
+    issued_date = cert["issued_date"] or "N/A"
+    
+    # Create a basic PDF certificate
+    pdf_content = generate_certificate_pdf(student_name, course_name, cert_no, grade, issued_date)
+    
+    filename = f"Certificate_{cert_no}.pdf"
+    from flask import Response
+    return Response(
+        pdf_content,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+def generate_certificate_pdf(student_name, course_name, cert_no, grade, issued_date):
+    """Generate a simple PDF certificate."""
+    # Minimal but valid PDF structure for a certificate
+    pdf_bytes = (
+        b"%PDF-1.4\n"
+        b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+        b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+        b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 792 612]"
+        b"/Resources<</Font<</F1 4 0 R/F2 5 0 R>>>>/Contents 6 0 R>>endobj\n"
+        b"4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n"
+        b"5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold>>endobj\n"
+    )
+    
+    # Prepare the certificate content
+    student_line = f"({student_name})"
+    course_line = f"({course_name})"
+    cert_no_line = f"({cert_no})"
+    grade_line = f"({grade})"
+    date_line = f"({issued_date})"
+    
+    content = (
+        b"BT\n"
+        b"/F2 32 Tf 150 520 Td (CYIENT FOUNDATION) Tj\n"
+        b"0 -40 Td /F1 18 Tf (Certificate of Completion) Tj\n"
+        b"0 -50 Td /F1 12 Tf (This is proudly presented to) Tj\n"
+        b"0 -35 Td /F2 24 Tf " + student_line.encode() + b" Tj\n"
+        b"0 -45 Td /F1 12 Tf (for successfully completing the course) Tj\n"
+        b"0 -35 Td /F2 16 Tf " + course_line.encode() + b" Tj\n"
+        b"0 -80 Td /F1 10 Tf (Certificate Number: ) Tj\n"
+        b"140 0 Td " + cert_no_line.encode() + b" Tj\n"
+        b"-140 -20 Td (Grade: ) Tj\n"
+        b"50 0 Td " + grade_line.encode() + b" Tj\n"
+        b"-50 -20 Td (Issued: ) Tj\n"
+        b"50 0 Td " + date_line.encode() + b" Tj\n"
+        b"ET\n"
+    )
+    
+    content_length = len(content)
+    pdf_bytes += (
+        b"6 0 obj<</Length " + str(content_length).encode() + b">>stream\n"
+    ) + content + (
+        b"\nendstream endobj\n"
+        b"xref\n0 7\n"
+        b"0000000000 65535 f \n"
+        b"0000000009 00000 n \n"
+        b"0000000052 00000 n \n"
+        b"0000000101 00000 n \n"
+        b"0000000247 00000 n \n"
+        b"0000000320 00000 n \n"
+    )
+    
+    xref_offset = len(pdf_bytes)
+    pdf_bytes += (
+        b"0000000394 00000 n \n"
+        b"trailer<</Size 7/Root 1 0 R>>\n"
+        b"startxref\n" + str(xref_offset).encode() + b"\n%%EOF"
+    )
+    
+    return pdf_bytes
+
+
 # ---------------------------------------------------------------------------
 # TRAINER portal data
 # ---------------------------------------------------------------------------
@@ -881,6 +975,37 @@ def trainer_certificates():
                         LEFT JOIN courses c ON ce.course_id = c.id
                         ORDER BY ce.id DESC""")
     return jsonify(rows)
+
+
+@app.route("/api/trainer/certificates/<int:cert_id>/download", methods=["GET"])
+@require_role("trainer")
+def download_trainer_certificate(cert_id):
+    """Generate and download a student's certificate as PDF (trainer view)."""
+    cert = fetch_one("""SELECT ce.*, c.name AS course_name, s.name AS student_name
+                        FROM certificates ce 
+                        LEFT JOIN courses c ON ce.course_id = c.id
+                        LEFT JOIN students s ON ce.student_id = s.id
+                        WHERE ce.id = ?""", (cert_id,))
+    if not cert:
+        abort(404, description="Certificate not found")
+    
+    # Generate a simple PDF certificate
+    student_name = cert["student_name"] or "Student"
+    course_name = cert["course_name"] or "Course"
+    cert_no = cert["certificate_no"] or f"CERT-{cert_id}"
+    grade = cert["grade"] or "N/A"
+    issued_date = cert["issued_date"] or "N/A"
+    
+    # Create a basic PDF certificate
+    pdf_content = generate_certificate_pdf(student_name, course_name, cert_no, grade, issued_date)
+    
+    filename = f"Certificate_{cert_no}.pdf"
+    from flask import Response
+    return Response(
+        pdf_content,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 
 # ---------------------------------------------------------------------------

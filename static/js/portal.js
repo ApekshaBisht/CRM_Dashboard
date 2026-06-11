@@ -190,6 +190,8 @@
       elContent.innerHTML = `<div class="cert-grid">${rows.map((c) => certCard(c)).join('')}</div>`;
       elContent.querySelectorAll('[data-cert]').forEach((b) =>
         b.addEventListener('click', () => viewCertificate(rows.find((x) => String(x.id) === b.dataset.cert))));
+      elContent.querySelectorAll('[data-cert-download]').forEach((b) =>
+        b.addEventListener('click', () => downloadCertificate(rows.find((x) => String(x.id) === b.dataset.certDownload))));
     },
 
     tickets() { return ticketsPage(); },
@@ -371,10 +373,15 @@
               <tr><td><strong>${esc(r.certificate_no)}</strong></td><td>${esc(r.student_name) || dash}</td>
               <td>${esc(r.course_name) || dash}</td><td>${esc(r.grade)}</td><td>${UI.fmtDate(r.issued_date)}</td>
               <td>${UI.badge(r.status)}</td>
-              <td><button class="btn btn-ghost btn-sm" data-cert="${r.id}">View</button></td></tr>`).join('')}</tbody>
+              <td><div style="display: flex; gap: 6px; align-items: center;">
+                <button class="btn btn-ghost btn-sm" data-cert="${r.id}">View</button>
+                <button class="btn btn-icon btn-ghost" data-cert-download-trainer="${r.id}" title="Download Certificate" style="padding: 4px 8px; display: flex; align-items: center; justify-content: center;">${I.download}</button>
+              </div></td></tr>`).join('')}</tbody>
           </table></div></div>`;
       elContent.querySelectorAll('[data-cert]').forEach((b) =>
         b.addEventListener('click', () => viewCertificate(rows.find((x) => String(x.id) === b.dataset.cert))));
+      elContent.querySelectorAll('[data-cert-download-trainer]').forEach((b) =>
+        b.addEventListener('click', () => downloadTrainerCertificate(rows.find((x) => String(x.id) === b.dataset.certDownloadTrainer))));
     },
 
     tickets() { return ticketsPage(); },
@@ -580,7 +587,10 @@
       <div class="cert-course">${esc(c.course_name) || 'Course'}</div>
       <div class="cert-no">${esc(c.certificate_no)}</div>
       <div class="cert-meta">Grade ${esc(c.grade)} • ${UI.fmtDate(c.issued_date)}</div>
-      <button class="btn btn-primary btn-sm" data-cert="${c.id}">View Certificate</button>
+      <div class="cert-actions" style="display: flex; gap: 8px; margin-top: 10px;">
+        <button class="btn btn-primary btn-sm" data-cert="${c.id}" style="flex: 1;">View Certificate</button>
+        <button class="btn btn-ghost btn-sm" data-cert-download="${c.id}" title="Download Certificate" style="flex: 0 0 auto; padding: 6px 12px;">${I.download}</button>
+      </div>
     </div>`;
   }
 
@@ -604,6 +614,28 @@
         </div>
       </div>`;
     openInfoModal('', body);
+  }
+
+  function downloadCertificate(c) {
+    if (!c) return;
+    const url = `/api/${ROLE}/certificates/${c.id}/download`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Certificate_${c.certificate_no || c.id}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function downloadTrainerCertificate(c) {
+    if (!c) return;
+    const url = `/api/trainer/certificates/${c.id}/download`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Certificate_${c.certificate_no || c.id}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 
   async function editStudent(id) {
