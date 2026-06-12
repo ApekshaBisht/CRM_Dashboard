@@ -9,17 +9,17 @@
   <style>
     body {
         display: flex;
-        align-items: center;
-        justify-content: center;
         min-height: 100vh;
         background-color: var(--gray-50);
         flex-direction: column;
+        margin: 0;
     }
     .selection-wrapper {
         width: 100%;
-        max-width: 800px;
-        padding: 20px;
+        max-width: 1000px;
+        padding: 40px 20px;
         text-align: center;
+        margin: auto;
     }
     .selection-header {
         margin-bottom: 40px;
@@ -42,10 +42,9 @@
     }
     .role-cards {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 24px;
-        max-width: 500px;
-        margin: 0 auto;
+        width: 100%;
     }
     .role-card {
         background: #FFFFFF;
@@ -88,8 +87,12 @@
         color: var(--gray-500);
         margin: 0;
     }
-    @media (max-width: 768px) {
+    @media (max-width: 900px) {
+        .role-cards { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 500px) {
         .role-cards { grid-template-columns: 1fr; }
+        .role-card { aspect-ratio: auto; min-height: 220px; }
     }
   </style>
 </head>
