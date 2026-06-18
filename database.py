@@ -48,6 +48,17 @@ def migrate_db(app):
     # Expected extra columns that may be missing on older databases.
     # Format: table -> list of (column_name, column_definition)
     expected = {
+        "activity_logs": [
+            ("user_id", "INTEGER"),
+            ("user_name", "TEXT"),
+            ("user_role", "TEXT"),
+            ("action", "TEXT NOT NULL"),
+            ("entity_type", "TEXT"),
+            ("entity_id", "INTEGER"),
+            ("summary", "TEXT"),
+            ("details", "TEXT"),
+            ("created_at", "TEXT NOT NULL DEFAULT (datetime('now'))"),
+        ],
         "internships": [
             ("payment_type", "TEXT DEFAULT 'Unpaid'"),
             ("visitor_card_id", "TEXT"),
@@ -71,6 +82,24 @@ def migrate_db(app):
     conn = sqlite3.connect(db_path)
     added = []
     try:
+        # Special case: Create activity_logs if it's entirely missing
+        if not _table_columns(conn, "activity_logs"):
+            conn.execute("""
+                CREATE TABLE activity_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    user_name TEXT,
+                    user_role TEXT,
+                    action TEXT NOT NULL,
+                    entity_type TEXT,
+                    entity_id INTEGER,
+                    summary TEXT,
+                    details TEXT,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                )
+            """)
+            added.append("table:activity_logs")
+
         for table, cols in expected.items():
             existing = _table_columns(conn, table)
             if not existing:

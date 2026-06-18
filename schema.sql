@@ -4,6 +4,7 @@
 PRAGMA foreign_keys = ON;
 
 -- Drop tables (clean re-init)
+DROP TABLE IF EXISTS activity_logs;
 DROP TABLE IF EXISTS trainer_attendance;
 DROP TABLE IF EXISTS student_attendance;
 DROP TABLE IF EXISTS activities;
@@ -25,6 +26,22 @@ DROP TABLE IF EXISTS tickets;
 DROP TABLE IF EXISTS certificates;
 DROP TABLE IF EXISTS chapter_files;
 DROP TABLE IF EXISTS student_chapter_status;
+
+-- =====================================================
+-- Activity Logs (audit log for system events)
+-- =====================================================
+CREATE TABLE activity_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    user_name TEXT,
+    user_role TEXT,
+    action TEXT NOT NULL,
+    entity_type TEXT,
+    entity_id INTEGER,
+    summary TEXT,
+    details TEXT,                           -- JSON string
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
 -- =====================================================
 -- Administrators
