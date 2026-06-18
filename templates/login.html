@@ -155,6 +155,8 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Login failed');
+        localStorage.setItem('jwt', data.token);
+        document.cookie = `jwt=${data.token}; path=/; max-age=86400`;
         if (data.role === 'student') location.href='/student';
         else if (data.role === 'trainer') location.href='/trainer';
         else if (data.role === 'admin') location.href='/admin';

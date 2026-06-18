@@ -6,9 +6,14 @@ const API = (() => {
   const BASE = '';   // same origin
 
   async function request(path, opts = {}) {
+    const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+    const token = localStorage.getItem('jwt');
+    if (token) {
+      headers['Authorization'] = 'Bearer ' + token;
+    }
     const init = {
       method: opts.method || 'GET',
-      headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+      headers: headers,
     };
     if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
 
@@ -27,6 +32,11 @@ const API = (() => {
     }
 
     if (!res.ok) {
+      if (res.status === 401 && !path.includes('/api/auth/login')) {
+        localStorage.removeItem('jwt');
+        document.cookie = 'jwt=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        window.location.href = '/login';
+      }
       const msg = (data && (data.error || data.message)) || `HTTP ${res.status}`;
       throw new Error(msg);
     }

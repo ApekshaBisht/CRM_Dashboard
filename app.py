@@ -10,7 +10,8 @@ Run: python app.py
 import os
 import uuid
 import functools
-from datetime import datetime
+import jwt
+from datetime import datetime, timedelta, timezone
 from flask import (Flask, jsonify, request, render_template, abort,
                    session, redirect, url_for, send_from_directory)
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -63,9 +64,29 @@ if not os.path.exists(_sample_pdf):
 # ---------------------------------------------------------------------------
 # Auth helpers
 # ---------------------------------------------------------------------------
+def get_jwt_payload():
+    """Extract and verify JWT from Authorization header or cookie."""
+    token = request.headers.get("Authorization")
+    if token and token.startswith("Bearer "):
+        token = token.split(" ")[1]
+    else:
+        token = request.cookies.get("jwt")
+        
+    if not token:
+        return None
+        
+    try:
+        return jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+    except Exception:
+        return None
+
+
 def current_user():
     """Return the logged-in user row (dict) or None."""
-    uid = session.get("user_id")
+    payload = get_jwt_payload()
+    if not payload:
+        return None
+    uid = payload.get("user_id")
     if not uid:
         return None
     return fetch_one("SELECT * FROM users WHERE id = ?", (uid,))
@@ -512,7 +533,8 @@ def options(entity):
 # ---------------------------------------------------------------------------
 @app.route("/")
 def index():
-    if not session.get("user_id") or session.get("role") != "superadmin":
+    payload = get_jwt_payload()
+    if not payload or payload.get("role") != "superadmin":
         return redirect("/login")
     return render_template("index.html")
 
@@ -533,25 +555,28 @@ def login_form(role):
 
 @app.route("/student")
 def student_dashboard():
-    if not session.get("user_id") or session.get("role") != "student":
+    payload = get_jwt_payload()
+    if not payload or payload.get("role") != "student":
         return redirect("/login/student")
-    name = session.get("name") or "Student"
+    name = payload.get("name") or "Student"
     initials = "".join([p[0] for p in name.split()[:2]]).upper() or "S"
     return render_template("student.html", user_name=name, user_initials=initials)
 
 @app.route("/trainer")
 def trainer_dashboard():
-    if not session.get("user_id") or session.get("role") != "trainer":
+    payload = get_jwt_payload()
+    if not payload or payload.get("role") != "trainer":
         return redirect("/login/trainer")
-    name = session.get("name") or "Trainer"
+    name = payload.get("name") or "Trainer"
     initials = "".join([p[0] for p in name.split()[:2]]).upper() or "T"
     return render_template("trainer.html", user_name=name, user_initials=initials)
 
 @app.route("/admin")
 def admin_dashboard():
-    if not session.get("user_id") or session.get("role") != "admin":
+    payload = get_jwt_payload()
+    if not payload or payload.get("role") != "admin":
         return redirect("/login/admin")
-    name = session.get("name") or "Admin"
+    name = payload.get("name") or "Admin"
     initials = "".join([p[0] for p in name.split()[:2]]).upper() or "A"
     return render_template("admin.html", user_name=name, user_initials=initials)
 
@@ -572,20 +597,27 @@ def auth_login():
     if role and user["role"] != role:
         return jsonify({"error": f"This account is not a {role} account"}), 403
 
-    session["user_id"] = user["id"]
-    session["role"] = user["role"]
-    session["name"] = user["display_name"]
+    payload = {
+        "user_id": user["id"],
+        "role": user["role"],
+        "name": user["display_name"],
+        "exp": datetime.now(timezone.utc) + timedelta(hours=24)
+    }
+    token = jwt.encode(payload, app.config["SECRET_KEY"], algorithm="HS256")
+
     return jsonify({
         "id": user["id"], "username": user["username"], "role": user["role"],
         "name": user["display_name"], "ref_id": user["ref_id"],
         "must_change_password": user["must_change_password"],
+        "token": token
     })
 
 
 @app.route("/api/auth/logout", methods=["POST"])
 def auth_logout():
-    session.clear()
-    return jsonify({"ok": True})
+    resp = jsonify({"ok": True})
+    resp.set_cookie("jwt", "", expires=0)
+    return resp
 
 
 @app.route("/api/auth/me", methods=["GET"])
