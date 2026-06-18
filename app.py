@@ -490,6 +490,10 @@ def build_crud(name, table, fields, *, search_fields=None, select_extra="", join
     @app.route(f"/api/{name}/<int:item_id>", methods=["PUT"], endpoint=f"update_{name}")
     def update_item(item_id):
         body = json_body()
+        before = fetch_one(base_select + f" WHERE {table}.id = ?", (item_id,))
+        if not before:
+            abort(404, description=f"{name} not found")
+
         cols, vals = [], []
         for f in fields:
             if f in body:
