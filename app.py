@@ -192,7 +192,12 @@ def json_body():
 def log_activity(action, entity_type, entity_id=None, summary="", details=None):
     """Best-effort audit log. Logging should never break the user's action."""
     try:
-        u = current_user() or {}
+        try:
+            u = current_user() or {}
+        except RuntimeError:
+            # Outside of request context
+            u = {}
+        
         execute(
             """INSERT INTO activity_logs
                (user_id,user_name,user_role,action,entity_type,entity_id,summary,details)
@@ -225,6 +230,7 @@ def send_email(to_email, subject, body):
     smtp_use_tls = os.environ.get("SMTP_USE_TLS", "true").strip().lower() in ("1", "true", "yes", "on")
     from_email = os.environ.get("SMTP_FROM") or smtp_user or "no-reply@cyientfoundation.local"
 
+    smtp_error = None
     if smtp_host and smtp_user and smtp_password:
         try:
             msg = EmailMessage()
@@ -232,34 +238,50 @@ def send_email(to_email, subject, body):
             msg["To"] = to_email
             msg["Subject"] = subject
             msg.set_content(body)
-            smtp_password = smtp_password.replace(" ", "")
+            
+            # Gmail app passwords are often shown as 4x4 characters with spaces
+            clean_password = smtp_password.replace(" ", "")
+            
             if smtp_use_ssl:
                 with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15) as smtp:
-                    smtp.login(smtp_user, smtp_password)
+                    smtp.ehlo()
+                    smtp.login(smtp_user, clean_password)
                     smtp.send_message(msg)
             else:
                 with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as smtp:
+                    smtp.ehlo()
                     if smtp_use_tls:
                         smtp.starttls()
-                    smtp.login(smtp_user, smtp_password)
+                        smtp.ehlo()
+                    smtp.login(smtp_user, clean_password)
                     smtp.send_message(msg)
-            return {"sent": True, "mode": "smtp"}
+            return {"sent": True, "mode": "smtp", "recipient": to_email}
         except Exception as exc:
             smtp_error = str(exc)
-        else:
-            smtp_error = None
-    else:
-        smtp_error = None
+            print(f"[send_email] SMTP failed for {to_email}: {smtp_error}")
 
+    # Fallback to local outbox
     outbox_path = os.path.join(app.instance_path, "email_outbox.log")
     os.makedirs(app.instance_path, exist_ok=True)
-    with open(outbox_path, "a", encoding="utf-8") as f:
-        f.write("\n" + "=" * 72 + "\n")
-        f.write(f"Time: {datetime.now().isoformat(timespec='seconds')}\n")
-        f.write(f"To: {to_email}\nSubject: {subject}\n\n{body}\n")
-        if smtp_error:
-            f.write(f"\n[SMTP fallback] {smtp_error}\n")
-    return {"sent": True, "mode": "outbox", "path": outbox_path, "smtp_error": smtp_error}
+    try:
+        with open(outbox_path, "a", encoding="utf-8") as f:
+            f.write("\n" + "=" * 72 + "\n")
+            f.write(f"Time: {datetime.now().isoformat(timespec='seconds')}\n")
+            f.write(f"To: {to_email}\nSubject: {subject}\n\n{body}\n")
+            if smtp_error:
+                f.write(f"\n[SMTP fallback] {smtp_error}\n")
+            elif not smtp_host or not smtp_user:
+                f.write("\n[Outbox] SMTP not configured (GMAIL_USER/GMAIL_APP_PASSWORD missing in .env)\n")
+    except Exception as e:
+        print(f"[send_email] Could not write to outbox: {e}")
+
+    return {
+        "sent": True,
+        "mode": "outbox",
+        "path": outbox_path,
+        "smtp_error": smtp_error,
+        "recipient": to_email
+    }
 
 
 def role_label(role):
@@ -310,12 +332,13 @@ Thank you,
 Cyient Foundation CRM
 """
         result = send_email(owner["username"], subject, body)
+        mode_label = "SMTP" if result.get("mode") == "smtp" else "Outbox"
         log_activity(
             "email_sent",
             "tickets",
             ticket_id,
-            f"Sent ticket creation email to {owner['username']}",
-            {"mode": result.get("mode"), "recipient": owner["username"], "audience": "owner"},
+            f"Ticket creation email - {mode_label} to {owner['username']}",
+            {"mode": result.get("mode"), "recipient": owner["username"], "audience": "owner", "smtp_error": result.get("smtp_error")},
         )
 
     alert_recipients = configured_ticket_alert_recipients()
@@ -399,12 +422,13 @@ Thank you,
 Cyient Foundation CRM
 """
     result = send_email(owner["username"], subject, body)
+    mode_label = "SMTP" if result.get("mode") == "smtp" else "Outbox"
     log_activity(
         "email_sent",
         "tickets",
         ticket_id,
-        f"Sent ticket answer email to {owner['username']}",
-        {"mode": result.get("mode"), "recipient": owner["username"]},
+        f"Ticket update email - {mode_label} to {owner['username']}",
+        {"mode": result.get("mode"), "recipient": owner["username"], "smtp_error": result.get("smtp_error")},
     )
 
 
