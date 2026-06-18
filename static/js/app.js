@@ -115,10 +115,14 @@
         elPageTitle.textContent = cfg.title;
         elBcSection.textContent = cfg.section || 'CRM';
         elSearch.parentElement.style.visibility = 'visible';
-        elPrimary.style.display = '';
-        elPrimary.textContent = `+ Add ${singularize(cfg.title)}`;
-
-        attachPrimaryAction(cfg);
+        if (cfg.readonly) {
+          elPrimary.style.display = 'none';
+          detachPrimaryAction();
+        } else {
+          elPrimary.style.display = '';
+          elPrimary.textContent = `+ Add ${singularize(cfg.title)}`;
+          attachPrimaryAction(cfg);
+        }
         attachSearch(cfg);
         await renderEntityPage(cfg);
       }
@@ -250,7 +254,7 @@
       <thead>
         <tr>
           ${cols.map((c) => `<th>${UI.escapeHtml(c.label)}</th>`).join('')}
-          <th class="col-actions">Actions</th>
+          ${cfg.readonly ? '' : '<th class="col-actions">Actions</th>'}
         </tr>
       </thead>`;
 
@@ -262,11 +266,13 @@
               const val = c.render ? c.render(row) : formatCell(row[c.key]);
               return `<td>${val}</td>`;
             }).join('')}
+            ${cfg.readonly ? '' : `
             <td class="col-actions">
               ${cfg.customActions ? cfg.customActions(row) : ''}
               <button class="btn btn-icon" title="Edit" data-action="edit" data-id="${row.id}">${ICONS.edit}</button>
               <button class="btn btn-icon btn-icon-danger" title="Delete" data-action="delete" data-id="${row.id}">${ICONS.trash}</button>
             </td>
+            `}
           </tr>
         `).join('')}
       </tbody>`;

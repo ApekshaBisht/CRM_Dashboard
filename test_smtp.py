@@ -28,12 +28,12 @@ msg["To"] = gmail_user
 msg["Subject"] = "SMTP Test"
 msg.set_content("This is a test email from the Antigravity agent.")
 
-print(f"Connecting to smtp.gmail.com:587 as {gmail_user}...")
+print(f"Connecting to smtp.gmail.com:465 (SSL) as {gmail_user}...")
 try:
-    with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as smtp:
-        smtp.starttls()
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as smtp:
         smtp.login(gmail_user, gmail_password)
         smtp.send_message(msg)
     print("Email sent successfully!")
 except Exception as e:
     print(f"Failed to send email: {e}")
+
