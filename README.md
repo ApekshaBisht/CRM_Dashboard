@@ -17,7 +17,28 @@ Open http://127.0.0.1:5000 → you'll land on the role-selection page.
 > **Important:** The database schema changed in this version. If you have an
 > old `instance/crm.db`, delete it (or run `RESEED=1 python app.py`) so the new
 > tables (users, tickets, certificates, chapter_files, student_chapter_status)
-> are created and seeded.
+> are created and seeded..
+## Real Gmail setup
+
+If you want ticket emails to go to real Gmail inboxes instead of
+`instance/email_outbox.log`, create a local `.env` file in the project root.
+You can copy `.env.example` and fill in your Gmail details:
+
+```bash
+GMAIL_USER=yourgmail@gmail.com
+GMAIL_APP_PASSWORD=your_16_character_google_app_password
+GMAIL_FROM=yourgmail@gmail.com
+```
+
+Important:
+
+- turn on **2-Step Verification** for the Gmail account
+- create a **Google App Password**
+- use that app password in `GMAIL_APP_PASSWORD`
+- do not use your normal Gmail login password
+
+The app auto-maps `GMAIL_*` settings to the SMTP values it needs, so no extra
+configuration is required after the `.env` file is added.
 
 ## Login credentials
 
@@ -56,6 +77,32 @@ the database small and handles videos well — the standard approach for real ap
 Max upload size is 50 MB; allowed types: pdf, mp4, webm, mov, png, jpg, jpeg,
 ppt, pptx, doc, docx.
 
+## Ticket email notifications
+
+The ticket workflow now sends emails for all portal roles (`Student`,
+`Trainer`, and `Super Admin`):
+
+- when any logged-in user raises a ticket, that user gets a confirmation email
+- when a ticket is raised, all other Super Admin users get a notification email
+- when an admin adds a response or changes the ticket status, the ticket owner
+  gets an update email (including `Resolved` and `Closed`)
+
+For local demos, if SMTP settings are not configured, the email is written to
+`instance/email_outbox.log` instead.
+
+Optional SMTP environment variables:
+
+```bash
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@example.com
+SMTP_PASSWORD=your_app_password
+SMTP_FROM=your_email@example.com
+```
+
+You can use either the `SMTP_*` variables above or the simpler `GMAIL_*`
+variables from the `Real Gmail setup` section.
+
 
 ## What's new in this version
 
@@ -90,3 +137,10 @@ Super Admins get a **Bulk Upload** button in the top bar. Upload a `.csv` or
 
 Requires `openpyxl` (added to `requirements.txt`) for Excel files; CSV needs
 nothing extra.
+
+
+Student: daggupatikoukar+student@gmail.com
+Trainer: daggupatikoukar+trainer@gmail.com
+Super Admin: daggupatikoukar+admin@gmail.com
+Password for all:
+cyient@123

@@ -26,6 +26,75 @@ const opts = (entity) => async () => {
 
 const ENTITIES = {
 
+  // ---------- ACTIVITY HISTORY ----------
+  activity_logs: {
+    title: 'Activity History',
+    section: 'Settings',
+    entity: 'activity_logs',
+    icon: 'activity',
+    readOnly: true,
+    columns: [
+      { key: 'created_at', label: 'When', render: (r) => UI.fmtDate(r.created_at) },
+      { key: 'user_name', label: 'User' },
+      { key: 'user_role', label: 'Role', render: (r) => UI.badge(r.user_role) },
+      { key: 'action', label: 'Action', render: (r) => UI.badge(r.action) },
+      { key: 'entity_type', label: 'Section' },
+      { key: 'summary', label: 'Summary' },
+    ],
+    fields: [],
+  },
+
+  // ---------- ANALYTICS: AT-RISK STUDENTS ----------
+  at_risk_students: {
+    title: 'At-Risk Students',
+    section: 'Analytics',
+    entity: 'at_risk_students',
+    icon: 'alert',
+    readOnly: true,
+    tableActions: [
+      { key: 'sendWarnings', label: 'Send Warnings', className: 'btn btn-primary btn-sm' },
+    ],
+    emptyTitle: 'No at-risk students',
+    emptyText: 'No active students currently match the dropout risk rules.',
+    columns: [
+      { key: 'name', label: 'Student' },
+      { key: 'batch', label: 'Batch' },
+      { key: 'course_name', label: 'Course' },
+      { key: 'risk_level', label: 'Risk', render: (r) => UI.badge(r.risk_level) },
+      { key: 'risk_score', label: 'Score' },
+      { key: 'attendance_pct', label: 'Attendance', render: (r) => `${r.attendance_pct || 0}%` },
+      { key: 'progress_pct', label: 'Progress', render: (r) => `${r.progress_pct || 0}%` },
+      { key: 'pending_chapters', label: 'Pending chapters' },
+      { key: 'unresolved_tickets', label: 'Open tickets' },
+      { key: 'reason', label: 'Reason' },
+    ],
+    fields: [],
+  },
+
+  // ---------- ANALYTICS: BATCH HEALTH ----------
+  batch_health: {
+    title: 'Batch Health',
+    section: 'Analytics',
+    entity: 'batch_health',
+    icon: 'pulse',
+    readOnly: true,
+    emptyTitle: 'No batch health data',
+    emptyText: 'Batch health appears after active students are assigned to batches.',
+    columns: [
+      { key: 'batch', label: 'Batch' },
+      { key: 'status', label: 'Status', render: (r) => UI.badge(r.status) },
+      { key: 'health_score', label: 'Health score', render: (r) => `${r.health_score || 0}%` },
+      { key: 'students', label: 'Students' },
+      { key: 'attendance_pct', label: 'Attendance', render: (r) => `${r.attendance_pct || 0}%` },
+      { key: 'course_progress_pct', label: 'Course progress', render: (r) => `${r.course_progress_pct || 0}%` },
+      { key: 'pending_tickets', label: 'Pending tickets' },
+      { key: 'certificate_eligible', label: 'Certificate eligible' },
+      { key: 'issued_certificates', label: 'Issued certificates' },
+      { key: 'avg_grade', label: 'Avg grade', render: (r) => r.avg_grade ?? '-' },
+    ],
+    fields: [],
+  },
+
   // ---------- ADMINISTRATORS ----------
   administrators: {
     title: 'Administrators',
@@ -506,6 +575,9 @@ const ENTITIES = {
 // Sidebar order — grouped by section
 const NAV_ORDER = [
   { type: 'item',    key: 'dashboard',           label: 'Master Board',                icon: 'grid' },
+  { type: 'heading', label: 'Analytics' },
+  { type: 'item',    key: 'at_risk_students',    label: 'At-Risk Students',            icon: 'alert' },
+  { type: 'item',    key: 'batch_health',        label: 'Batch Health',                icon: 'pulse' },
   { type: 'heading', label: 'Operations' },
   { type: 'item',    key: 'projects',            label: 'Projects',                    icon: 'briefcase' },
   { type: 'item',    key: 'activities',          label: 'Activities',                  icon: 'activity' },
@@ -546,6 +618,8 @@ const ICONS = {
   'user-tie':  '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/></svg>',
   shield:      '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
   activity:    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+  alert:       '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  pulse:       '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 8L9 4l-3 8H2"/></svg>',
   'check-circle': '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
   clock:       '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
   star:        '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',

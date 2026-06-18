@@ -54,6 +54,7 @@ const API = (() => {
   }
 
   return {
+    request,
     list:   (entity, params)        => request(`/api/${entity}${qs(params)}`),
     get:    (entity, id)            => request(`/api/${entity}/${id}`),
     create: (entity, body)          => request(`/api/${entity}`, { method: 'POST',   body }),
