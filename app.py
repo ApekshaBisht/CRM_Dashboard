@@ -1,6 +1,5 @@
 """
 Cyient Foundation CRM Dashboard - Flask backend
-================================================
 A single-file Flask app exposing a JSON REST API for all modules,
 a /api/dashboard endpoint for the Master Board, plus authentication
 and role-scoped portals for Students, Trainers and Super Admins.
@@ -12,11 +11,53 @@ import uuid
 import functools
 import jwt
 from datetime import datetime, timedelta, timezone
+import json
+import smtplib
+from datetime import datetime
+from email.message import EmailMessage
 from flask import (Flask, jsonify, request, render_template, abort,
                    session, redirect, url_for, send_from_directory)
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from database import get_db, close_db, init_db, rows_to_dicts, row_to_dict
+
+
+BASE_DIR = os.path.dirname(__file__)
+
+
+def load_env_file(path):
+    """Load simple KEY=VALUE pairs from a local .env file."""
+    if not os.path.exists(path):
+        return
+    with open(path, "r", encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if value[:1] == value[-1:] and value[:1] in ("'", '"'):
+                value = value[1:-1]
+            os.environ.setdefault(key, value)
+
+
+def configure_mail_env():
+    """Map Gmail-specific env vars into the SMTP vars used by send_email()."""
+    gmail_user = os.environ.get("GMAIL_USER")
+    gmail_password = os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("GMAIL_PASSWORD")
+    gmail_from = os.environ.get("GMAIL_FROM") or gmail_user
+    if gmail_user and gmail_password:
+        os.environ.setdefault("SMTP_HOST", "smtp.gmail.com")
+        os.environ.setdefault("SMTP_PORT", "587")
+        os.environ.setdefault("SMTP_USER", gmail_user)
+        os.environ.setdefault("SMTP_PASSWORD", gmail_password)
+        if gmail_from:
+            os.environ.setdefault("SMTP_FROM", gmail_from)
+
+
+load_env_file(os.path.join(BASE_DIR, ".env"))
+configure_mail_env()
 
 
 # ---------------------------------------------------------------------------
@@ -148,6 +189,225 @@ def json_body():
     return request.get_json(silent=True) or {}
 
 
+def log_activity(action, entity_type, entity_id=None, summary="", details=None):
+    """Best-effort audit log. Logging should never break the user's action."""
+    try:
+        u = current_user() or {}
+        execute(
+            """INSERT INTO activity_logs
+               (user_id,user_name,user_role,action,entity_type,entity_id,summary,details)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                u.get("id"),
+                u.get("display_name") or u.get("username") or "System",
+                u.get("role") or "system",
+                action,
+                entity_type,
+                entity_id,
+                summary,
+                json.dumps(details or {}, ensure_ascii=True),
+            ),
+        )
+    except Exception as e:
+        print(f"[activity_log] {e}")
+
+
+def send_email(to_email, subject, body):
+    """Send email through SMTP, or save to a local outbox when SMTP is not set."""
+    if not to_email:
+        return {"sent": False, "reason": "missing recipient"}
+
+    smtp_host = os.environ.get("SMTP_HOST")
+    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+    smtp_user = os.environ.get("SMTP_USER")
+    smtp_password = os.environ.get("SMTP_PASSWORD")
+    smtp_use_ssl = os.environ.get("SMTP_USE_SSL", "").strip().lower() in ("1", "true", "yes", "on")
+    smtp_use_tls = os.environ.get("SMTP_USE_TLS", "true").strip().lower() in ("1", "true", "yes", "on")
+    from_email = os.environ.get("SMTP_FROM") or smtp_user or "no-reply@cyientfoundation.local"
+
+    if smtp_host and smtp_user and smtp_password:
+        try:
+            msg = EmailMessage()
+            msg["From"] = from_email
+            msg["To"] = to_email
+            msg["Subject"] = subject
+            msg.set_content(body)
+            smtp_password = smtp_password.replace(" ", "")
+            if smtp_use_ssl:
+                with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15) as smtp:
+                    smtp.login(smtp_user, smtp_password)
+                    smtp.send_message(msg)
+            else:
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as smtp:
+                    if smtp_use_tls:
+                        smtp.starttls()
+                    smtp.login(smtp_user, smtp_password)
+                    smtp.send_message(msg)
+            return {"sent": True, "mode": "smtp"}
+        except Exception as exc:
+            smtp_error = str(exc)
+        else:
+            smtp_error = None
+    else:
+        smtp_error = None
+
+    outbox_path = os.path.join(app.instance_path, "email_outbox.log")
+    os.makedirs(app.instance_path, exist_ok=True)
+    with open(outbox_path, "a", encoding="utf-8") as f:
+        f.write("\n" + "=" * 72 + "\n")
+        f.write(f"Time: {datetime.now().isoformat(timespec='seconds')}\n")
+        f.write(f"To: {to_email}\nSubject: {subject}\n\n{body}\n")
+        if smtp_error:
+            f.write(f"\n[SMTP fallback] {smtp_error}\n")
+    return {"sent": True, "mode": "outbox", "path": outbox_path, "smtp_error": smtp_error}
+
+
+def role_label(role):
+    return {
+        "student": "Student",
+        "trainer": "Trainer",
+        "superadmin": "Super Admin",
+    }.get(role or "", "User")
+
+
+def configured_ticket_alert_recipients():
+    """Return the configured ticket-alert inboxes, if any."""
+    raw = (
+        os.environ.get("TICKET_ALERT_EMAILS")
+        or os.environ.get("TICKET_ALERT_EMAIL")
+        or os.environ.get("SUPPORT_ALERT_EMAIL")
+        or ""
+    )
+    recipients = []
+    for piece in raw.split(","):
+        email = piece.strip()
+        if email and email not in recipients:
+            recipients.append(email)
+    return recipients
+
+
+def notify_ticket_created(ticket_id, ticket):
+    """Email the ticket owner and super admins when a new ticket is raised."""
+    if not ticket or not ticket.get("raised_by_user_id"):
+        return
+
+    owner = fetch_one("SELECT id, username, display_name, role FROM users WHERE id = ?", (ticket["raised_by_user_id"],))
+    if owner and owner.get("username"):
+        subject = f"Ticket #{ticket_id} received"
+        body = f"""Hello {owner.get('display_name') or role_label(owner.get('role'))},
+
+Your ticket has been raised successfully in the Cyient Foundation CRM portal.
+
+Ticket ID: #{ticket_id}
+Subject: {ticket.get('subject') or 'Untitled ticket'}
+Category: {ticket.get('category') or 'General'}
+Priority: {ticket.get('priority') or 'Medium'}
+Status: {ticket.get('status') or 'Open'}
+
+Our team will review it and update you soon.
+
+Thank you,
+Cyient Foundation CRM
+"""
+        result = send_email(owner["username"], subject, body)
+        log_activity(
+            "email_sent",
+            "tickets",
+            ticket_id,
+            f"Sent ticket creation email to {owner['username']}",
+            {"mode": result.get("mode"), "recipient": owner["username"], "audience": "owner"},
+        )
+
+    alert_recipients = configured_ticket_alert_recipients()
+    if alert_recipients:
+        admins = [
+            {"username": email, "display_name": "Super Admin"}
+            for email in alert_recipients
+            if email != (owner.get("username") if owner else None)
+        ]
+    else:
+        admins = fetch_all(
+            "SELECT id, username, display_name FROM users WHERE role = 'superadmin' AND id != ? ORDER BY id",
+            (ticket["raised_by_user_id"],),
+        )
+
+    for admin in admins:
+        if not admin.get("username"):
+            continue
+        subject = f"New ticket #{ticket_id} raised by {ticket.get('raised_by_name') or role_label(ticket.get('raised_by_role'))}"
+        body = f"""Hello {admin.get('display_name') or 'Super Admin'},
+
+A new ticket has been raised in the Cyient Foundation CRM portal.
+
+Raised by: {ticket.get('raised_by_name') or 'Unknown user'}
+Role: {role_label(ticket.get('raised_by_role'))}
+Email: {owner.get('username') if owner else 'Not available'}
+Ticket ID: #{ticket_id}
+Subject: {ticket.get('subject') or 'Untitled ticket'}
+Category: {ticket.get('category') or 'General'}
+Priority: {ticket.get('priority') or 'Medium'}
+Status: {ticket.get('status') or 'Open'}
+
+Description:
+{ticket.get('description') or 'No description provided.'}
+
+Please review the ticket in the admin portal.
+
+Thank you,
+Cyient Foundation CRM
+"""
+        result = send_email(admin["username"], subject, body)
+        log_activity(
+            "email_sent",
+            "tickets",
+            ticket_id,
+            f"Sent new-ticket alert to {admin['username']}",
+            {"mode": result.get("mode"), "recipient": admin["username"], "audience": "superadmin"},
+        )
+
+
+def notify_ticket_answered(ticket_id, before, after):
+    """Email the ticket owner when an admin updates, resolves, or closes a ticket."""
+    if not after or not after.get("raised_by_user_id"):
+        return
+
+    old_response = (before or {}).get("response") or ""
+    new_response = after.get("response") or ""
+    old_status = (before or {}).get("status") or ""
+    new_status = after.get("status") or ""
+    was_answered = new_response.strip() and new_response.strip() != old_response.strip()
+    was_solved = new_status in ("Resolved", "Closed") and new_status != old_status
+    if not was_answered and not was_solved:
+        return
+
+    owner = fetch_one("SELECT username, display_name, role FROM users WHERE id = ?", (after["raised_by_user_id"],))
+    if not owner:
+        return
+
+    subject = f"Your ticket #{ticket_id} has been updated"
+    body = f"""Hello {owner.get('display_name') or role_label(owner.get('role'))},
+
+Your ticket has been updated by the Cyient Foundation CRM team.
+
+Ticket: {after.get('subject') or f'#{ticket_id}'}
+Status: {new_status}
+
+Response:
+{new_response or 'Your ticket status has been updated.'}
+
+Thank you,
+Cyient Foundation CRM
+"""
+    result = send_email(owner["username"], subject, body)
+    log_activity(
+        "email_sent",
+        "tickets",
+        ticket_id,
+        f"Sent ticket answer email to {owner['username']}",
+        {"mode": result.get("mode"), "recipient": owner["username"]},
+    )
+
+
 # Registry of all CRUD entities, populated by build_crud(). Used by the bulk
 # upload feature to know each entity's table, insertable columns, and the
 # hook that provisions login users for people-type entities.
@@ -213,6 +473,18 @@ def build_crud(name, table, fields, *, search_fields=None, select_extra="", join
             except Exception as e:
                 print(f"[after_create:{name}] {e}")
         row = fetch_one(base_select + f" WHERE {table}.id = ?", (new_id,))
+        log_activity("created", name, new_id, f"Created {name} #{new_id}", {"fields": cols})
+        if name == "tickets" and row:
+            try:
+                notify_ticket_created(new_id, row)
+            except Exception as e:
+                log_activity(
+                    "email_failed",
+                    "tickets",
+                    new_id,
+                    f"Could not send ticket creation email for ticket #{new_id}",
+                    {"error": str(e)},
+                )
         return jsonify(row), 201
 
     @app.route(f"/api/{name}/<int:item_id>", methods=["PUT"], endpoint=f"update_{name}")
@@ -233,6 +505,19 @@ def build_crud(name, table, fields, *, search_fields=None, select_extra="", join
         row = fetch_one(base_select + f" WHERE {table}.id = ?", (item_id,))
         if not row:
             abort(404, description=f"{name} not found")
+        changed = [f for f in fields if f in body and (not before or before.get(f) != body[f])]
+        log_activity("updated", name, item_id, f"Updated {name} #{item_id}", {"fields": changed})
+        if name == "tickets":
+            try:
+                notify_ticket_answered(item_id, before, row)
+            except Exception as e:
+                log_activity(
+                    "email_failed",
+                    "tickets",
+                    item_id,
+                    f"Could not send ticket answer email for ticket #{item_id}",
+                    {"error": str(e)},
+                )
         return jsonify(row)
 
     @app.route(f"/api/{name}/<int:item_id>", methods=["DELETE"], endpoint=f"delete_{name}")
@@ -394,11 +679,202 @@ build_crud(
           "LEFT JOIN courses ON certificates.course_id = courses.id",
 )
 
+# ---------------------------------------------------------------------------
+# Analytics helpers
+# ---------------------------------------------------------------------------
+def student_risk_rows(limit=8):
+    """Identify active students who show dropout risk signals."""
+    db = get_db()
+    students = rows_to_dicts(db.execute("""
+        SELECT s.id,
+               s.name,
+               s.email,
+               s.batch,
+               c.name AS course_name,
+               COUNT(sa.id) AS attendance_total,
+               SUM(CASE WHEN sa.status = 'Present' THEN 1 ELSE 0 END) AS attendance_present,
+               COUNT(DISTINCT ch.id) AS total_chapters,
+               COUNT(DISTINCT CASE WHEN scs.status = 'Completed' THEN ch.id END) AS completed_chapters,
+               AVG(ss.grade) AS avg_grade,
+               COUNT(DISTINCT CASE WHEN t.status IN ('Open', 'In Progress') THEN t.id END) AS unresolved_tickets
+        FROM students s
+        LEFT JOIN courses c ON s.course_id = c.id
+        LEFT JOIN student_attendance sa ON sa.student_id = s.id
+        LEFT JOIN modules m ON m.course_id = s.course_id
+        LEFT JOIN chapters ch ON ch.module_id = m.id
+        LEFT JOIN student_chapter_status scs ON scs.student_id = s.id AND scs.chapter_id = ch.id
+        LEFT JOIN student_skills ss ON ss.student_id = s.id
+        LEFT JOIN users u ON u.role = 'student' AND u.ref_id = s.id
+        LEFT JOIN tickets t ON t.raised_by_user_id = u.id
+        WHERE s.status = 'Active'
+        GROUP BY s.id
+    """).fetchall())
+
+    risk_rows = []
+    for s in students:
+        attendance_total = s["attendance_total"] or 0
+        attendance_pct = round(((s["attendance_present"] or 0) / attendance_total) * 100, 1) if attendance_total else 0
+        total_chapters = s["total_chapters"] or 0
+        completed_chapters = s["completed_chapters"] or 0
+        pending_chapters = max(total_chapters - completed_chapters, 0)
+        progress_pct = round((completed_chapters / total_chapters) * 100, 1) if total_chapters else 0
+        avg_grade = round(s["avg_grade"], 1) if s["avg_grade"] is not None else None
+        unresolved_tickets = s["unresolved_tickets"] or 0
+
+        reasons = []
+        score = 0
+        if attendance_total and attendance_pct < 60:
+            score += 35
+            reasons.append(f"attendance is below 60% ({attendance_pct}%)")
+        if total_chapters and pending_chapters >= 3:
+            score += 25
+            reasons.append(f"{pending_chapters} chapters are pending")
+        if avg_grade is not None and avg_grade < 50:
+            score += 25
+            reasons.append(f"average grade is below 50 ({avg_grade})")
+        if unresolved_tickets:
+            score += 15
+            reasons.append(f"{unresolved_tickets} unresolved ticket(s)")
+
+        if reasons:
+            level = "High" if score >= 60 else "Medium" if score >= 35 else "Watch"
+            risk_rows.append({
+                "student_id": s["id"],
+                "name": s["name"],
+                "email": s["email"],
+                "batch": s["batch"],
+                "course_name": s["course_name"],
+                "risk_score": min(score, 100),
+                "risk_level": level,
+                "attendance_pct": attendance_pct,
+                "progress_pct": progress_pct,
+                "pending_chapters": pending_chapters,
+                "avg_grade": avg_grade,
+                "unresolved_tickets": unresolved_tickets,
+                "reason": f"{s['name']} is at risk because " + " and ".join(reasons) + ".",
+            })
+
+    return sorted(risk_rows, key=lambda r: r["risk_score"], reverse=True)[:limit]
+
+
+def build_at_risk_warning_message(student):
+    """Create a warning email for a student flagged by the risk rules."""
+    student_name = student.get("name") or "Student"
+    course_name = student.get("course_name") or "your course"
+    risk_level = student.get("risk_level") or "Watch"
+    reason = student.get("reason") or "your recent progress needs attention."
+
+    subject = f"Important: Support Needed for Your {course_name} Progress"
+    body = (
+        f"Dear {student_name},\n\n"
+        "We wanted to let you know that your recent learning progress shows that you may be at risk in your course.\n\n"
+        f"Risk level: {risk_level}\n"
+        f"Reason: {reason}\n\n"
+        "We encourage you to take immediate action to improve your progress. "
+        "Please connect with your trainer or coordinator as soon as possible and complete your pending work.\n\n"
+        "Our goal is to support you and help you get back on track.\n\n"
+        "Regards,\n"
+        "Cyient Foundation Team"
+    )
+    return subject, body
+
+
+def batch_health_rows():
+    """Calculate batch-wise health from attendance, progress, tickets, and certificates."""
+    db = get_db()
+    rows = rows_to_dicts(db.execute("""
+        SELECT s.batch,
+               COUNT(DISTINCT s.id) AS students,
+               COUNT(sa.id) AS attendance_total,
+               SUM(CASE WHEN sa.status = 'Present' THEN 1 ELSE 0 END) AS attendance_present,
+               COUNT(DISTINCT s.id || '-' || ch.id) AS chapter_slots,
+               COUNT(DISTINCT CASE WHEN scs.status = 'Completed' THEN s.id || '-' || ch.id END) AS completed_slots,
+               AVG(ss.grade) AS avg_grade,
+               COUNT(DISTINCT CASE WHEN t.status IN ('Open', 'In Progress') THEN t.id END) AS pending_tickets,
+               COUNT(DISTINCT ce.id) AS issued_certificates
+        FROM students s
+        LEFT JOIN student_attendance sa ON sa.student_id = s.id
+        LEFT JOIN modules m ON m.course_id = s.course_id
+        LEFT JOIN chapters ch ON ch.module_id = m.id
+        LEFT JOIN student_chapter_status scs ON scs.student_id = s.id AND scs.chapter_id = ch.id
+        LEFT JOIN student_skills ss ON ss.student_id = s.id
+        LEFT JOIN users u ON u.role = 'student' AND u.ref_id = s.id
+        LEFT JOIN tickets t ON t.raised_by_user_id = u.id
+        LEFT JOIN certificates ce ON ce.student_id = s.id AND ce.status = 'Issued'
+        WHERE s.status = 'Active'
+        GROUP BY s.batch
+        ORDER BY s.batch
+    """).fetchall())
+
+    batches = []
+    for r in rows:
+        students = r["students"] or 0
+        attendance_total = r["attendance_total"] or 0
+        attendance_pct = round(((r["attendance_present"] or 0) / attendance_total) * 100, 1) if attendance_total else 0
+        progress_pct = round(((r["completed_slots"] or 0) / (r["chapter_slots"] or 0)) * 100, 1) if r["chapter_slots"] else 0
+        avg_grade = round(r["avg_grade"], 1) if r["avg_grade"] is not None else None
+        pending_tickets = r["pending_tickets"] or 0
+        issued_certificates = r["issued_certificates"] or 0
+
+        certificate_eligible = 0
+        student_ids = [
+            row["id"] for row in db.execute(
+                "SELECT id FROM students WHERE status = 'Active' AND batch = ?",
+                (r["batch"],),
+            ).fetchall()
+        ]
+        for sid in student_ids:
+            metrics = db.execute("""
+                SELECT COUNT(DISTINCT ch.id) AS total_chapters,
+                       COUNT(DISTINCT CASE WHEN scs.status = 'Completed' THEN ch.id END) AS completed_chapters,
+                       AVG(ss.grade) AS avg_grade,
+                       COUNT(ce.id) AS certificates
+                FROM students s
+                LEFT JOIN modules m ON m.course_id = s.course_id
+                LEFT JOIN chapters ch ON ch.module_id = m.id
+                LEFT JOIN student_chapter_status scs ON scs.student_id = s.id AND scs.chapter_id = ch.id
+                LEFT JOIN student_skills ss ON ss.student_id = s.id
+                LEFT JOIN certificates ce ON ce.student_id = s.id AND ce.status = 'Issued'
+                WHERE s.id = ?
+            """, (sid,)).fetchone()
+            total_chapters = metrics["total_chapters"] or 0
+            completed_chapters = metrics["completed_chapters"] or 0
+            grade_ok = metrics["avg_grade"] is None or metrics["avg_grade"] >= 50
+            progress_ok = total_chapters > 0 and completed_chapters == total_chapters
+            if progress_ok and grade_ok and not metrics["certificates"]:
+                certificate_eligible += 1
+
+        ticket_penalty = min(pending_tickets * 5, 35)
+        certificate_pct = round((issued_certificates / students) * 100, 1) if students else 0
+        health_score = round(
+            (attendance_pct * 0.35) +
+            (progress_pct * 0.35) +
+            (max(0, 100 - ticket_penalty) * 0.15) +
+            (certificate_pct * 0.15),
+            1,
+        )
+        status = "Healthy" if health_score >= 75 else "Needs Attention" if health_score >= 55 else "Critical"
+        batches.append({
+            "batch": r["batch"] or "Unassigned",
+            "students": students,
+            "attendance_pct": attendance_pct,
+            "course_progress_pct": progress_pct,
+            "pending_tickets": pending_tickets,
+            "certificate_eligible": certificate_eligible,
+            "issued_certificates": issued_certificates,
+            "avg_grade": avg_grade,
+            "health_score": health_score,
+            "status": status,
+        })
+
+    return sorted(batches, key=lambda r: r["health_score"])
+
 
 # ---------------------------------------------------------------------------
 # Master board / dashboard aggregates
 # ---------------------------------------------------------------------------
 @app.route("/api/dashboard", methods=["GET"])
+@require_role("superadmin")
 def dashboard():
     """Aggregate counters, project status breakdown and recent attendance trend."""
     db = get_db()
@@ -502,13 +978,116 @@ def dashboard():
         "students_by_status": students_by_status,
         "course_student_count": course_student_count,
         "recent_activities": recent_activities,
+        "at_risk_students": student_risk_rows(),
+        "batch_health": batch_health_rows(),
     })
+
+
+@app.route("/api/at-risk-students", methods=["GET"])
+@require_role("superadmin")
+def at_risk_students():
+    return jsonify(student_risk_rows(limit=50))
+
+
+@app.route("/api/at_risk_students", methods=["GET"])
+@require_role("superadmin")
+def at_risk_students_entity():
+    return jsonify(student_risk_rows(limit=50))
+
+
+@app.route("/api/at-risk-students/send-warning", methods=["POST"])
+@require_role("superadmin")
+def send_at_risk_warnings():
+    students = student_risk_rows(limit=500)
+    if not students:
+        return jsonify({"message": "No at-risk students found", "sent_count": 0, "failed_count": 0, "failed_students": []})
+
+    sent_count = 0
+    failed = []
+    modes = set()
+
+    for student in students:
+        email = student.get("email")
+        if not email:
+            failed.append({
+                "student_id": student.get("student_id"),
+                "name": student.get("name"),
+                "reason": "missing email",
+            })
+            continue
+
+        subject, body = build_at_risk_warning_message(student)
+        result = send_email(email, subject, body)
+        if result.get("sent"):
+            sent_count += 1
+            if result.get("mode"):
+                modes.add(result["mode"])
+        else:
+            failed.append({
+                "student_id": student.get("student_id"),
+                "name": student.get("name"),
+                "reason": result.get("reason") or "send failed",
+            })
+
+    log_activity(
+        "email_sent",
+        "at_risk_students",
+        None,
+        f"Sent at-risk warning emails to {sent_count} student(s)",
+        {
+            "sent_count": sent_count,
+            "failed_count": len(failed),
+            "failed_students": failed,
+            "mode": sorted(modes),
+        },
+    )
+
+    return jsonify({
+        "message": f"Warning email sent to {sent_count} at-risk student(s)",
+        "sent_count": sent_count,
+        "failed_count": len(failed),
+        "failed_students": failed,
+        "mode": sorted(modes),
+    })
+
+
+@app.route("/api/batch-health", methods=["GET"])
+@require_role("superadmin")
+def batch_health():
+    return jsonify(batch_health_rows())
+
+
+@app.route("/api/batch_health", methods=["GET"])
+@require_role("superadmin")
+def batch_health_entity():
+    return jsonify(batch_health_rows())
+
+
+@app.route("/api/activity_logs", methods=["GET"])
+@require_role("superadmin")
+def activity_logs():
+    """Read-only activity history for the Super Admin portal."""
+    q = request.args.get("q", "").strip()
+    params = []
+    where = ""
+    if q:
+        where = """WHERE user_name LIKE ? OR user_role LIKE ? OR action LIKE ?
+                   OR entity_type LIKE ? OR summary LIKE ?"""
+        params = [f"%{q}%"] * 5
+    rows = fetch_all(f"""
+        SELECT * FROM activity_logs
+        {where}
+        ORDER BY datetime(created_at) DESC, id DESC
+        LIMIT 250
+    """, params)
+    return jsonify(rows)
 
 
 # ---------------------------------------------------------------------------
 # Helper: lightweight option lists for dropdowns
 # ---------------------------------------------------------------------------
 @app.route("/api/options/<entity>", methods=["GET"])
+@require_role()
 def options(entity):
     """Return [{id, name}] pairs for selects. Used to populate FK dropdowns."""
     allowed = {
@@ -675,12 +1254,24 @@ def me_tickets():
         return jsonify({"error": "not authenticated"}), 401
     if request.method == "POST":
         b = json_body()
-        execute(
+        cur = execute(
             "INSERT INTO tickets (raised_by_user_id,raised_by_name,raised_by_role,subject,description,category,priority,status) "
             "VALUES (?,?,?,?,?,?,?, 'Open')",
             (u["id"], u["display_name"], u["role"], b.get("subject"), b.get("description"),
              b.get("category", "General"), b.get("priority", "Medium")),
         )
+        ticket_id = cur.lastrowid
+        ticket = fetch_one("SELECT * FROM tickets WHERE id = ?", (ticket_id,))
+        try:
+            notify_ticket_created(ticket_id, ticket)
+        except Exception as e:
+            log_activity(
+                "email_failed",
+                "tickets",
+                ticket_id,
+                f"Could not send ticket creation email for ticket #{ticket_id}",
+                {"error": str(e)},
+            )
         return jsonify({"ok": True}), 201
     rows = fetch_all("SELECT * FROM tickets WHERE raised_by_user_id = ? ORDER BY id DESC", (u["id"],))
     return jsonify(rows)
@@ -691,8 +1282,7 @@ def me_tickets_item(item_id):
     u = current_user()
     if not u:
         return jsonify({"error": "not authenticated"}), 401
-    
-    # Verify ownership
+
     ticket = fetch_one("SELECT * FROM tickets WHERE id = ? AND raised_by_user_id = ?", (item_id, u["id"]))
     if not ticket:
         abort(404, description="Ticket not found or unauthorized")
@@ -700,8 +1290,7 @@ def me_tickets_item(item_id):
     if request.method == "DELETE":
         execute("DELETE FROM tickets WHERE id = ?", (item_id,))
         return jsonify({"ok": True})
-    
-    # PUT
+
     b = json_body()
     execute(
         "UPDATE tickets SET subject = ?, category = ?, priority = ?, description = ?, updated_at = datetime('now') WHERE id = ?",

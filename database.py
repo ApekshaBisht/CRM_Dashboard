@@ -104,6 +104,11 @@ def init_db(app):
         print(f"[init_db] Database already exists at {db_path} (migrated, kept data).")
         return
 
+    if force_reseed and os.path.exists(db_path):
+        # Rebuild from a clean file so DROP/CREATE in schema.sql cannot trip
+        # over foreign-key dependencies from the existing database contents.
+        os.remove(db_path)
+
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")

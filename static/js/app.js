@@ -165,6 +165,7 @@
             ${query ? `<span class="muted">filtered by “${UI.escapeHtml(query)}”</span>` : ''}
           </div>
           <div class="table-actions">
+            ${buildTableActions(cfg)}
             <button class="btn btn-ghost btn-sm" id="refresh-btn">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
               Refresh
@@ -185,6 +186,7 @@
     if (refreshBtn) {
       refreshBtn.addEventListener('click', () => renderEntityPage(cfg, query));
     }
+    attachTableActions(cfg, rows, query);
 
     // Per-row edit / delete / custom
     elContent.querySelectorAll('[data-action="edit"]').forEach((btn) => {
@@ -196,6 +198,50 @@
     elContent.querySelectorAll('[data-action="docs"]').forEach((btn) => {
       btn.addEventListener('click', () => onDocs(cfg, Number(btn.dataset.id)));
     });
+  }
+
+  function buildTableActions(cfg) {
+    if (!cfg.tableActions || !cfg.tableActions.length) return '';
+    return cfg.tableActions.map((action) => `
+      <button class="${action.className || 'btn btn-ghost btn-sm'}" type="button" data-table-action="${action.key}">
+        ${UI.escapeHtml(action.label)}
+      </button>
+    `).join('');
+  }
+
+  function attachTableActions(cfg, rows, query) {
+    if (!cfg.tableActions || !cfg.tableActions.length) return;
+    cfg.tableActions.forEach((action) => {
+      const btn = elContent.querySelector(`[data-table-action="${action.key}"]`);
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        if (cfg.entity === 'at_risk_students' && action.key === 'sendWarnings') {
+          await onSendAtRiskWarnings(rows, query);
+        }
+      });
+    });
+  }
+
+  async function onSendAtRiskWarnings(rows, query) {
+    if (!rows.length) {
+      UI.toast('There are no at-risk students to email right now', 'info');
+      return;
+    }
+
+    const ok = await UI.confirmAction(
+      `Send warning emails to all ${rows.length} at-risk students?`,
+      'Send Warnings'
+    );
+    if (!ok) return;
+
+    try {
+      const result = await API.request('/api/at-risk-students/send-warning', { method: 'POST' });
+      const failedText = result.failed_count ? ` ${result.failed_count} failed.` : '';
+      UI.toast(`${result.message}.${failedText}`.trim(), result.failed_count ? 'warning' : 'success', 5000);
+      await renderEntityPage(ENTITIES.at_risk_students, query);
+    } catch (err) {
+      UI.toast(err.message || 'Could not send warning emails', 'danger');
+    }
   }
 
   function buildTable(cfg, rows) {

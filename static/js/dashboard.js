@@ -95,6 +95,36 @@ const Dashboard = (() => {
         </div>
       </div>
 
+      <div class="dashboard-grid">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">At-risk students</h3>
+              <div class="card-subtitle">Dropout signals from attendance, chapters, grades and tickets</div>
+            </div>
+          </div>
+          <div>
+            ${data.at_risk_students && data.at_risk_students.length
+              ? data.at_risk_students.map(riskRow).join('')
+              : '<p style="color:var(--gray-500);font-size:13px;">No active risk signals right now.</p>'}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Batch health score</h3>
+              <div class="card-subtitle">Attendance, progress, pending tickets and certificate readiness</div>
+            </div>
+          </div>
+          <div>
+            ${data.batch_health && data.batch_health.length
+              ? data.batch_health.map(batchHealthRow).join('')
+              : '<p style="color:var(--gray-500);font-size:13px;">No batch data available.</p>'}
+          </div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
           <div>
@@ -147,6 +177,30 @@ const Dashboard = (() => {
         <div class="activity-meta">${UI.escapeHtml(a.activity_type || '')} • ${UI.fmtDate(a.activity_date)} • ${UI.escapeHtml(a.project_name || 'No project')}</div>
       </div>
       <div class="activity-count">${UI.fmtNum(a.participants_count || 0)} ppl</div>
+    </div>`;
+  }
+
+  function riskRow(r) {
+    return `<div class="activity-row">
+      <div class="activity-icon">${UI.escapeHtml((r.risk_level || 'R').slice(0, 1))}</div>
+      <div>
+        <div class="activity-name">${UI.escapeHtml(r.name)} ${UI.badge(r.risk_level || 'Watch')}</div>
+        <div class="activity-meta">${UI.escapeHtml(r.reason || '')}</div>
+        <div class="activity-meta">Attendance ${r.attendance_pct || 0}% • Progress ${r.progress_pct || 0}% • Pending chapters ${r.pending_chapters || 0}</div>
+      </div>
+      <div class="activity-count">${UI.fmtNum(r.risk_score || 0)}</div>
+    </div>`;
+  }
+
+  function batchHealthRow(b) {
+    const score = Math.max(0, Math.min(100, b.health_score || 0));
+    return `<div class="project-row">
+      <div>
+        <div class="name">${UI.escapeHtml(b.batch)} ${UI.badge(b.status || 'Unknown')}</div>
+        <div class="meta">${score}% health • ${UI.fmtNum(b.students || 0)} students • ${UI.fmtNum(b.pending_tickets || 0)} pending tickets</div>
+        <div class="progress-bar"><div class="progress-bar-fill${score>=75?' full':''}" style="width:${score}%"></div></div>
+        <div class="meta">Attendance ${b.attendance_pct || 0}% • Course progress ${b.course_progress_pct || 0}% • Certificate eligible ${UI.fmtNum(b.certificate_eligible || 0)}</div>
+      </div>
     </div>`;
   }
 
