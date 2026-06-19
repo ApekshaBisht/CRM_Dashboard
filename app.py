@@ -1238,21 +1238,69 @@ def auth_me():
 
 @app.route("/api/auth/forgot", methods=["POST"])
 def auth_forgot():
-    """Prototype reset: verify the username exists then set a new password."""
+    """Verify the username exists then send a reset token via email."""
     body = json_body()
     username = (body.get("username") or "").strip().lower()
-    new_password = body.get("new_password") or ""
     role = (body.get("role") or "").strip()
-    if len(new_password) < 4:
-        return jsonify({"error": "Password must be at least 4 characters"}), 400
+    
     user = fetch_one("SELECT * FROM users WHERE lower(username) = ?", (username,))
     if not user:
-        return jsonify({"error": "No account found with that username"}), 404
+        return jsonify({"ok": True, "message": "If that account exists, a reset link was sent to your email."})
     if role and user["role"] != role:
-        return jsonify({"error": f"That username is not a {role} account"}), 403
+        return jsonify({"ok": True, "message": "If that account exists, a reset link was sent to your email."})
+    
+    payload = {
+        "reset_user_id": user["id"],
+        "exp": datetime.now(timezone.utc) + timedelta(hours=1)
+    }
+    token = jwt.encode(payload, app.config["SECRET_KEY"], algorithm="HS256")
+    reset_link = f"{request.host_url.rstrip('/')}/reset-password?token={token}"
+    
+    subject = "Password Reset Request"
+    body_text = f"Hello {user['display_name'] or 'User'},\n\nYou requested a password reset. Please click the link below to set a new password:\n\n{reset_link}\n\nIf you did not request this, please ignore this email.\n\nThanks,\nCyient Foundation"
+    
+    send_email(user["username"], subject, body_text)
+    
+    return jsonify({"ok": True, "message": "If that account exists, a reset link was sent to your email."})
+
+@app.route("/reset-password", methods=["GET"])
+def reset_password_page():
+    token = request.args.get("token")
+    if not token:
+        return "Invalid or missing token", 400
+    try:
+        jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+    except jwt.ExpiredSignatureError:
+        return "Token has expired", 400
+    except jwt.InvalidTokenError:
+        return "Invalid token", 400
+    
+    return render_template("reset_password.html", token=token)
+
+@app.route("/api/auth/reset-password", methods=["POST"])
+def auth_reset_password():
+    body = json_body()
+    token = body.get("token")
+    new_password = body.get("new_password") or ""
+    
+    if len(new_password) < 4:
+        return jsonify({"error": "Password must be at least 4 characters"}), 400
+        
+    try:
+        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Reset link has expired"}), 400
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid reset link"}), 400
+        
+    user_id = payload.get("reset_user_id")
+    if not user_id:
+        return jsonify({"error": "Invalid token payload"}), 400
+        
     execute("UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?",
-            (generate_password_hash(new_password), user["id"]))
-    return jsonify({"ok": True, "message": "Password reset successful. You can now log in."})
+            (generate_password_hash(new_password), user_id))
+    
+    return jsonify({"ok": True, "message": "Password updated successfully. You can log in now."})
 
 
 @app.route("/api/auth/change-password", methods=["POST"])
