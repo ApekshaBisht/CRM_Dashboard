@@ -833,3 +833,9 @@ table.data-table {
 /* ---- Generic info modal ---- */
 .info-modal { max-width: 560px; width: 100%; }
 .info-modal .modal-body { padding: 18px 20px 22px; }
+
+/* ---------- password toggle ---------- */
+.password-wrapper { position:relative; display:flex; align-items:center; width: 100%; }
+.password-wrapper input { width:100%; padding-right:40px; box-sizing:border-box; }
+.password-toggle { position:absolute; right:10px; cursor:pointer; background:none; border:none; color:var(--gray-500); padding:0; display:flex; align-items:center; justify-content:center; outline:none; }
+.password-toggle:hover { color:var(--gray-700); }

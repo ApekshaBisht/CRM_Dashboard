@@ -512,13 +512,29 @@
   }
 
   function passwordPage() {
+    const eyeIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="eye-icon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
     elContent.innerHTML = `
       <div class="card" style="max-width:460px;">
         <div class="card-header"><div><h3 class="card-title">Change Password</h3>
           <div class="card-subtitle">Update your account password.</div></div></div>
-        <div class="field"><label>Current Password <span class="req">*</span></label><input type="password" id="cp-current" /></div>
-        <div class="field"><label>New Password <span class="req">*</span></label><input type="password" id="cp-new" /></div>
-        <div class="field"><label>Confirm New Password <span class="req">*</span></label><input type="password" id="cp-confirm" /></div>
+        <div class="field"><label>Current Password <span class="req">*</span></label>
+          <div class="password-wrapper">
+            <input type="password" id="cp-current" />
+            <button type="button" class="password-toggle" onclick="UI.togglePassword('cp-current', this)">${eyeIcon}</button>
+          </div>
+        </div>
+        <div class="field"><label>New Password <span class="req">*</span></label>
+          <div class="password-wrapper">
+            <input type="password" id="cp-new" />
+            <button type="button" class="password-toggle" onclick="UI.togglePassword('cp-new', this)">${eyeIcon}</button>
+          </div>
+        </div>
+        <div class="field"><label>Confirm New Password <span class="req">*</span></label>
+          <div class="password-wrapper">
+            <input type="password" id="cp-confirm" />
+            <button type="button" class="password-toggle" onclick="UI.togglePassword('cp-confirm', this)">${eyeIcon}</button>
+          </div>
+        </div>
         <div style="margin-top:10px;"><button class="btn btn-primary" id="cp-save">Update Password</button></div>
       </div>`;
     document.getElementById('cp-save').addEventListener('click', async () => {
