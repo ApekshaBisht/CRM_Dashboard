@@ -86,7 +86,7 @@
   function parseHash() {
     const raw = (location.hash || '').replace(/^#/, '').trim();
     if (!raw) return 'dashboard';
-    if (raw === 'dashboard' || ENTITIES[raw]) return raw;
+    if (raw === 'dashboard' || raw === 'calendar' || ENTITIES[raw]) return raw;
     return 'dashboard';
   }
 
@@ -110,6 +110,12 @@
         elSearch.parentElement.style.visibility = 'hidden';
         elPrimary.style.display = 'none';
         await Dashboard.render(elContent);
+      } else if (key === 'calendar') {
+        elPageTitle.textContent = 'Calendar';
+        elBcSection.textContent = 'Calendar';
+        elSearch.parentElement.style.visibility = 'hidden';
+        elPrimary.style.display = 'none';
+        Calendar.render(elContent);
       } else {
         const cfg = ENTITIES[key];
         elPageTitle.textContent = cfg.title;
