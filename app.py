@@ -192,12 +192,7 @@ def json_body():
 def log_activity(action, entity_type, entity_id=None, summary="", details=None):
     """Best-effort audit log. Logging should never break the user's action."""
     try:
-        try:
-            u = current_user() or {}
-        except RuntimeError:
-            # Outside of request context
-            u = {}
-        
+        u = current_user() or {}
         execute(
             """INSERT INTO activity_logs
                (user_id,user_name,user_role,action,entity_type,entity_id,summary,details)

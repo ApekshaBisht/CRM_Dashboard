@@ -602,6 +602,7 @@ const NAV_ORDER = [
   { type: 'item',    key: 'student_attendance',  label: 'Student Attendance',          icon: 'check-circle' },
   { type: 'item',    key: 'trainer_attendance',  label: 'Trainer Attendance',          icon: 'clock' },
   { type: 'heading', label: 'Settings' },
+  { type: 'item',    key: 'activity_logs',       label: 'Activity History',            icon: 'activity' },
   { type: 'item',    key: 'change_password',     label: 'Change Password',             icon: 'key', id: 'change-pw-action' },
 ];
 
