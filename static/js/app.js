@@ -121,7 +121,7 @@
         elPageTitle.textContent = cfg.title;
         elBcSection.textContent = cfg.section || 'CRM';
         elSearch.parentElement.style.visibility = 'visible';
-        if (cfg.readonly) {
+        if (cfg.readonly || cfg.noAdd) {
           elPrimary.style.display = 'none';
           detachPrimaryAction();
         } else {
@@ -703,7 +703,7 @@
           openTickets.forEach(t => {
             items.push({
               type: 'tickets',
-              title: `Ticket: ${t.subject}`,
+              title: `Helpdesk: ${t.subject}`,
               desc: `Raised by ${t.raised_by_name} (${t.priority} priority)`,
               time: t.id
             });

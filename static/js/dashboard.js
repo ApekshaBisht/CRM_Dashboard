@@ -1,11 +1,11 @@
- /* ===================================================================
-   Dashboard view (Master Board)
-   - Stat cards
-   - Project status doughnut
-   - Attendance trend line chart
-   - Course-wise student count bar chart
-   - Top projects + recent activities
-   =================================================================== */
+/* ===================================================================
+  Dashboard view (Master Board)
+  - Stat cards
+  - Project status doughnut
+  - Attendance trend line chart
+  - Course-wise student count bar chart
+  - Top projects + recent activities
+  =================================================================== */
 
 const Dashboard = (() => {
 
@@ -13,7 +13,7 @@ const Dashboard = (() => {
   let charts = [];
 
   function destroyCharts() {
-    charts.forEach((c) => { try { c.destroy(); } catch (e) {} });
+    charts.forEach((c) => { try { c.destroy(); } catch (e) { } });
     charts = [];
   }
 
@@ -89,8 +89,8 @@ const Dashboard = (() => {
           </div>
           <div id="top-projects">
             ${data.top_projects.length
-              ? data.top_projects.map(topProjectRow).join('')
-              : '<p style="color:var(--gray-500);font-size:13px;">No projects yet.</p>'}
+        ? data.top_projects.map(topProjectRow).join('')
+        : '<p style="color:var(--gray-500);font-size:13px;">No projects yet.</p>'}
           </div>
         </div>
       </div>
@@ -105,8 +105,8 @@ const Dashboard = (() => {
           </div>
           <div>
             ${data.at_risk_students && data.at_risk_students.length
-              ? data.at_risk_students.map(riskRow).join('')
-              : '<p style="color:var(--gray-500);font-size:13px;">No active risk signals right now.</p>'}
+        ? data.at_risk_students.map(riskRow).join('')
+        : '<p style="color:var(--gray-500);font-size:13px;">No active risk signals right now.</p>'}
           </div>
         </div>
 
@@ -119,8 +119,8 @@ const Dashboard = (() => {
           </div>
           <div>
             ${data.batch_health && data.batch_health.length
-              ? data.batch_health.map(batchHealthRow).join('')
-              : '<p style="color:var(--gray-500);font-size:13px;">No batch data available.</p>'}
+        ? data.batch_health.map(batchHealthRow).join('')
+        : '<p style="color:var(--gray-500);font-size:13px;">No batch data available.</p>'}
           </div>
         </div>
       </div>
@@ -134,8 +134,8 @@ const Dashboard = (() => {
         </div>
         <div>
           ${data.recent_activities.length
-            ? data.recent_activities.map(activityRow).join('')
-            : '<p style="color:var(--gray-500);font-size:13px;">No activities yet.</p>'}
+        ? data.recent_activities.map(activityRow).join('')
+        : '<p style="color:var(--gray-500);font-size:13px;">No activities yet.</p>'}
         </div>
       </div>
     `;
@@ -163,7 +163,7 @@ const Dashboard = (() => {
       <div>
         <div class="name">${UI.escapeHtml(p.name)}</div>
         <div class="meta">${UI.badge(p.status)} <span style="margin-left:6px;">${pct}% complete</span></div>
-        <div class="progress-bar"><div class="progress-bar-fill${pct>=100?' full':''}" style="width:${pct}%"></div></div>
+        <div class="progress-bar"><div class="progress-bar-fill${pct >= 100 ? ' full' : ''}" style="width:${pct}%"></div></div>
       </div>
     </div>`;
   }
@@ -198,7 +198,7 @@ const Dashboard = (() => {
       <div>
         <div class="name">${UI.escapeHtml(b.batch)} ${UI.badge(b.status || 'Unknown')}</div>
         <div class="meta">${score}% health • ${UI.fmtNum(b.students || 0)} students • ${UI.fmtNum(b.pending_tickets || 0)} pending tickets</div>
-        <div class="progress-bar"><div class="progress-bar-fill${score>=75?' full':''}" style="width:${score}%"></div></div>
+        <div class="progress-bar"><div class="progress-bar-fill${score >= 75 ? ' full' : ''}" style="width:${score}%"></div></div>
         <div class="meta">Attendance ${b.attendance_pct || 0}% • Course progress ${b.course_progress_pct || 0}% • Certificate eligible ${UI.fmtNum(b.certificate_eligible || 0)}</div>
       </div>
     </div>`;
@@ -207,8 +207,8 @@ const Dashboard = (() => {
   function drawAttendanceChart(trend) {
     const ctx = document.getElementById('chart-attendance');
     if (!ctx) return;
-    const labels = trend.map((r) => UI.fmtDate(r.attendance_date).split(' ').slice(0,2).join(' '));
-    const data   = trend.map((r) => r.present_pct);
+    const labels = trend.map((r) => UI.fmtDate(r.attendance_date).split(' ').slice(0, 2).join(' '));
+    const data = trend.map((r) => r.present_pct);
 
     const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 280);
     gradient.addColorStop(0, 'rgba(14,157,177,0.35)');
@@ -238,8 +238,10 @@ const Dashboard = (() => {
           tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y}% present` } },
         },
         scales: {
-          y: { beginAtZero: true, max: 100, ticks: { callback: (v) => v + '%', color: '#6B7785' },
-               grid: { color: '#EEF2F6' } },
+          y: {
+            beginAtZero: true, max: 100, ticks: { callback: (v) => v + '%', color: '#6B7785' },
+            grid: { color: '#EEF2F6' }
+          },
           x: { ticks: { color: '#6B7785', maxRotation: 0, autoSkip: true }, grid: { display: false } },
         },
       },
@@ -250,13 +252,13 @@ const Dashboard = (() => {
     const ctx = document.getElementById('chart-projects');
     if (!ctx) return;
     const colorMap = {
-      'Active':    '#16A34A',
+      'Active': '#16A34A',
       'Completed': '#2563EB',
-      'Planned':   '#0E9DB1',
-      'On Hold':   '#D97706',
+      'Planned': '#0E9DB1',
+      'On Hold': '#D97706',
     };
     const labels = rows.map((r) => r.status);
-    const data   = rows.map((r) => r.count);
+    const data = rows.map((r) => r.count);
     const colors = labels.map((s) => colorMap[s] || '#95A2B1');
 
     charts.push(new Chart(ctx, {
@@ -277,7 +279,7 @@ const Dashboard = (() => {
     const ctx = document.getElementById('chart-courses');
     if (!ctx) return;
     const labels = rows.map((r) => r.course_name);
-    const data   = rows.map((r) => r.student_count);
+    const data = rows.map((r) => r.student_count);
 
     charts.push(new Chart(ctx, {
       type: 'bar',

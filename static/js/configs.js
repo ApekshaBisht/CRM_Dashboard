@@ -32,7 +32,7 @@ const ENTITIES = {
     section: 'Settings',
     entity: 'activity_logs',
     icon: 'activity',
-    readOnly: true,
+    readonly: true,
     columns: [
       { key: 'created_at', label: 'When', render: (r) => UI.fmtDate(r.created_at) },
       { key: 'user_name', label: 'User' },
@@ -50,7 +50,8 @@ const ENTITIES = {
     section: 'Analytics',
     entity: 'at_risk_students',
     icon: 'alert',
-    readOnly: true,
+    readonly: false,
+    noAdd: true,
     tableActions: [
       { key: 'sendWarnings', label: 'Send Warnings', className: 'btn btn-primary btn-sm' },
     ],
@@ -65,10 +66,21 @@ const ENTITIES = {
       { key: 'attendance_pct', label: 'Attendance', render: (r) => `${r.attendance_pct || 0}%` },
       { key: 'progress_pct', label: 'Progress', render: (r) => `${r.progress_pct || 0}%` },
       { key: 'pending_chapters', label: 'Pending chapters' },
-      { key: 'unresolved_tickets', label: 'Open tickets' },
+      { key: 'unresolved_tickets', label: 'Open helpdesk' },
       { key: 'reason', label: 'Reason' },
     ],
-    fields: [],
+    fields: [
+      { key: 'name', label: 'Full name', required: true, full: true },
+      { key: 'email', label: 'Email', type: 'email', required: true },
+      { key: 'phone', label: 'Phone' },
+      { key: 'gender', label: 'Gender', type: 'select', options: ['Male', 'Female', 'Other'] },
+      { key: 'project_id', label: 'Project', type: 'select', options: opts('projects') },
+      { key: 'course_id',  label: 'Course',  type: 'select', options: opts('courses') },
+      { key: 'batch', label: 'Batch', placeholder: 'B-2026-A' },
+      { key: 'institution', label: 'Institution' },
+      { key: 'enrollment_date', label: 'Enrollment date', type: 'date' },
+      { key: 'status', label: 'Status', type: 'select', required: true, options: STATUS_OPTIONS.student },
+    ],
   },
 
   // ---------- ANALYTICS: BATCH HEALTH ----------
@@ -77,7 +89,7 @@ const ENTITIES = {
     section: 'Analytics',
     entity: 'batch_health',
     icon: 'pulse',
-    readOnly: true,
+    readonly: true,
     emptyTitle: 'No batch health data',
     emptyText: 'Batch health appears after active students are assigned to batches.',
     columns: [
@@ -87,7 +99,7 @@ const ENTITIES = {
       { key: 'students', label: 'Students' },
       { key: 'attendance_pct', label: 'Attendance', render: (r) => `${r.attendance_pct || 0}%` },
       { key: 'course_progress_pct', label: 'Course progress', render: (r) => `${r.course_progress_pct || 0}%` },
-      { key: 'pending_tickets', label: 'Pending tickets' },
+      { key: 'pending_tickets', label: 'Pending helpdesk' },
       { key: 'certificate_eligible', label: 'Certificate eligible' },
       { key: 'issued_certificates', label: 'Issued certificates' },
       { key: 'avg_grade', label: 'Avg grade', render: (r) => r.avg_grade ?? '-' },
@@ -522,7 +534,7 @@ const ENTITIES = {
   },
 
   tickets: {
-    title: 'Ticket Management',
+    title: 'Helpdesk Management',
     section: 'Support',
     entity: 'tickets',
     icon: 'ticket',
@@ -597,7 +609,7 @@ const NAV_ORDER = [
   { type: 'item',    key: 'internships',         label: 'Internships',                 icon: 'briefcase' },
   { type: 'item',    key: 'feedbacks',           label: 'Feedback',                    icon: 'edit' },
   { type: 'heading', label: 'Support' },
-  { type: 'item',    key: 'tickets',             label: 'Tickets',                     icon: 'ticket' },
+  { type: 'item',    key: 'tickets',             label: 'Helpdesk',                     icon: 'ticket' },
   { type: 'item',    key: 'certificates',        label: 'Certificates',                icon: 'award' },
   { type: 'heading', label: 'Attendance' },
   { type: 'item',    key: 'student_attendance',  label: 'Student Attendance',          icon: 'check-circle' },
