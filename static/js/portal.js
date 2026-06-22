@@ -329,32 +329,70 @@
 
     async attendance() {
       const rows = await req('/api/student_attendance');
-      elContent.innerHTML = `
-        <div class="card table-card">
-          <div class="table-toolbar"><div class="table-meta">
-            <span class="badge badge-info">${rows.length} records</span></div></div>
-          <div class="table-wrap"><table class="data-table">
-            <thead><tr><th>Date</th><th>Student</th><th>Course</th><th>Session</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody>${rows.slice(0, 200).map((r) => `
-              <tr><td>${UI.fmtDate(r.attendance_date)}</td><td>${esc(r.student_name) || dash}</td>
-              <td>${esc(r.course_name) || dash}</td><td>${esc(r.session)}</td><td>${UI.badge(r.status)}</td>
-              <td><button class="btn btn-icon btn-ghost" data-edit-att="${r.id}" title="Edit">${I.edit}</button></td></tr>`).join('')}</tbody>
-          </table></div></div>`;
-          
-      elContent.querySelectorAll('[data-edit-att]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const id = btn.dataset.editAtt;
-          const att = rows.find(r => r.id == id);
-          const v = await UI.openForm({ title: 'Edit Attendance', values: att, fields: [
-            { key: 'session', label: 'Session', type: 'select', options: ['Morning', 'Afternoon', 'Full Day'] },
-            { key: 'status', label: 'Status', type: 'select', options: ['Present', 'Absent', 'Late', 'Excused'] },
-            { key: 'remarks', label: 'Remarks', full: true }
-          ] });
-          if (!v) return;
-          try { await req(`/api/student_attendance/${id}`, { method: 'PUT', body: v }); UI.toast('Attendance updated', 'success'); TrainerPages.attendance(); }
-          catch (e) { UI.toast(e.message, 'danger'); }
-        });
+      
+      const monthGroups = {};
+      rows.forEach(r => {
+        const d = new Date(r.attendance_date);
+        const mKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        const mLabel = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        if (!monthGroups[mKey]) monthGroups[mKey] = { label: mLabel, rows: [] };
+        monthGroups[mKey].rows.push(r);
       });
+      const sortedKeys = Object.keys(monthGroups).sort().reverse();
+      let currentMonth = sortedKeys.length > 0 ? sortedKeys[0] : '';
+
+      const renderView = () => {
+        if (!currentMonth) {
+          elContent.innerHTML = UI.emptyState('No records', 'No attendance records found.');
+          return;
+        }
+        const mRows = monthGroups[currentMonth].rows;
+        
+        elContent.innerHTML = `
+          <div class="card table-card">
+            <div class="table-toolbar">
+              <div class="table-meta"><span class="badge badge-info">${mRows.length} records in ${monthGroups[currentMonth].label}</span></div>
+              <div class="table-actions">
+                <select id="month-filter" class="mini-select">
+                  ${sortedKeys.map(k => `<option value="${k}" ${k === currentMonth ? 'selected' : ''}>${monthGroups[k].label}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="table-wrap"><table class="data-table">
+              <thead><tr><th>Date</th><th>Student</th><th>Course</th><th>Session</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>${mRows.slice(0, 200).map((r) => `
+                <tr><td>${UI.fmtDate(r.attendance_date)}</td><td>${esc(r.student_name) || dash}</td>
+                <td>${esc(r.course_name) || dash}</td><td>${esc(r.session)}</td><td>${UI.badge(r.status)}</td>
+                <td><button class="btn btn-icon btn-ghost" data-edit-att="${r.id}" title="Edit">${I.edit}</button></td></tr>`).join('')}</tbody>
+            </table></div>
+          </div>`;
+            
+        document.getElementById('month-filter').addEventListener('change', (e) => {
+          currentMonth = e.target.value;
+          renderView();
+        });
+
+        elContent.querySelectorAll('[data-edit-att]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const id = btn.dataset.editAtt;
+            const att = rows.find(r => String(r.id) === String(id));
+            const v = await UI.openForm({ title: 'Edit Attendance', values: att, fields: [
+              { key: 'session', label: 'Session', type: 'select', options: ['Morning', 'Afternoon', 'Full Day'] },
+              { key: 'status', label: 'Status', type: 'select', options: ['Present', 'Absent', 'Late', 'Excused'] },
+              { key: 'remarks', label: 'Remarks', full: true }
+            ] });
+            if (!v) return;
+            try { 
+              await req(`/api/student_attendance/${id}`, { method: 'PUT', body: v }); 
+              UI.toast('Attendance updated', 'success'); 
+              TrainerPages.attendance(); 
+            }
+            catch (err) { UI.toast(err.message, 'danger'); }
+          });
+        });
+      };
+      
+      renderView();
     },
 
     async certificates() {
