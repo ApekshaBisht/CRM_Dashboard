@@ -54,7 +54,7 @@
       { key: 'chapters',     label: 'Chapter Management', icon: I.book },
       { key: 'attendance',   label: 'My Attendance',   icon: I.check },
       { key: 'certificates', label: 'Certificates',    icon: I.award },
-      { key: 'tickets',      label: 'Tickets',         icon: I.ticket },
+      { key: 'tickets',      label: 'Helpdesk',         icon: I.ticket },
       { key: 'feedback',     label: 'Feedback',        icon: I.edit },
       { key: 'password',     label: 'Change Password', icon: I.key },
     ],
@@ -65,7 +65,7 @@
       { key: 'mark_att',      label: 'Mark Attendance',     icon: I.clip },
       { key: 'attendance',    label: 'View Attendance',     icon: I.check },
       { key: 'certificates',  label: 'Certificates',        icon: I.award },
-      { key: 'tickets',       label: 'Tickets',             icon: I.ticket },
+      { key: 'tickets',       label: 'Helpdesk',             icon: I.ticket },
       { key: 'feedback',      label: 'Feedback',            icon: I.edit },
       { key: 'password',      label: 'Change Password',     icon: I.key },
     ],
@@ -73,7 +73,7 @@
 
   const TITLES = {
     dashboard: 'Dashboard', chapters: 'Chapter Management', attendance: ROLE === 'student' ? 'My Attendance' : 'View Attendance',
-    certificates: 'Certificates', tickets: 'Tickets', feedback: 'Feedback', password: 'Change Password',
+    certificates: 'Certificates', tickets: 'Helpdesk', feedback: 'Feedback', password: 'Change Password',
     students: 'Student Management', mark_att: 'Mark Student Attendance',
   };
 
@@ -126,7 +126,7 @@
           ${statCard('Attendance', d.attendance.pct + '%', `${d.attendance.present}/${d.attendance.total} classes`, I.check, 'green')}
           ${statCard('Chapters Done', d.chapters.completed, `of ${d.chapters.total} • ${d.chapters.in_progress} in progress`, I.book, 'blue')}
           ${statCard('Certificates', d.certificates, 'earned', I.award, 'purple')}
-          ${statCard('My Tickets', d.tickets, 'raised', I.ticket, 'orange')}
+          ${statCard('My Helpdesk', d.tickets, 'raised', I.ticket, 'orange')}
         </div>
         <div class="card">
           <div class="card-header"><div><h3 class="card-title">Course Progress</h3>
@@ -397,8 +397,8 @@
     elContent.innerHTML = `
       <div class="card table-card">
         <div class="table-toolbar">
-          <div class="table-meta"><span class="badge badge-info">${rows.length} tickets</span></div>
-          <div class="table-actions"><button class="btn btn-primary btn-sm" id="raise-ticket">+ Raise Ticket</button></div>
+          <div class="table-meta"><span class="badge badge-info">${rows.length} requests</span></div>
+          <div class="table-actions"><button class="btn btn-primary btn-sm" id="raise-ticket">+ Raise Request</button></div>
         </div>
         <div class="table-wrap"><table class="data-table">
           <thead><tr><th>#</th><th>Subject</th><th>Category</th><th>Priority</th><th>Status</th><th>Response</th><th>Raised</th><th>Actions</th></tr></thead>
@@ -415,14 +415,14 @@
         </table></div></div>`;
         
     document.getElementById('raise-ticket').addEventListener('click', async () => {
-      const v = await UI.openForm({ title: 'Raise a Ticket', fields: [
+      const v = await UI.openForm({ title: 'Raise a Request', fields: [
         { key: 'subject', label: 'Subject', required: true, full: true },
         { key: 'category', label: 'Category', type: 'select', options: ['General', 'Technical', 'Content', 'Attendance', 'Other'] },
         { key: 'priority', label: 'Priority', type: 'select', required: true, options: ['Low', 'Medium', 'High', 'Urgent'] },
         { key: 'description', label: 'Description', type: 'textarea', full: true },
       ] });
       if (!v) return;
-      try { await req('/api/me/tickets', { method: 'POST', body: v }); UI.toast('Ticket raised', 'success'); ticketsPage(); }
+      try { await req('/api/me/tickets', { method: 'POST', body: v }); UI.toast('Request raised', 'success'); ticketsPage(); }
       catch (e) { UI.toast(e.message, 'danger'); }
     });
 
@@ -430,14 +430,14 @@
       btn.addEventListener('click', async () => {
         const id = btn.dataset.editTicket;
         const ticket = rows.find(r => r.id == id);
-        const v = await UI.openForm({ title: 'Edit Ticket', values: ticket, fields: [
+        const v = await UI.openForm({ title: 'Edit Request', values: ticket, fields: [
           { key: 'subject', label: 'Subject', required: true, full: true },
           { key: 'category', label: 'Category', type: 'select', options: ['General', 'Technical', 'Content', 'Attendance', 'Other'] },
           { key: 'priority', label: 'Priority', type: 'select', required: true, options: ['Low', 'Medium', 'High', 'Urgent'] },
           { key: 'description', label: 'Description', type: 'textarea', full: true },
         ] });
         if (!v) return;
-        try { await req(`/api/me/tickets/${id}`, { method: 'PUT', body: v }); UI.toast('Ticket updated', 'success'); ticketsPage(); }
+        try { await req(`/api/me/tickets/${id}`, { method: 'PUT', body: v }); UI.toast('Request updated', 'success'); ticketsPage(); }
         catch (e) { UI.toast(e.message, 'danger'); }
       });
     });
@@ -445,8 +445,8 @@
     elContent.querySelectorAll('[data-delete-ticket]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.deleteTicket;
-        if (!(await UI.confirmAction('Delete this ticket?', 'Delete'))) return;
-        try { await req(`/api/me/tickets/${id}`, { method: 'DELETE' }); UI.toast('Ticket deleted', 'success'); ticketsPage(); }
+        if (!(await UI.confirmAction('Delete this request?', 'Delete'))) return;
+        try { await req(`/api/me/tickets/${id}`, { method: 'DELETE' }); UI.toast('Request deleted', 'success'); ticketsPage(); }
         catch (e) { UI.toast(e.message, 'danger'); }
       });
     });
@@ -821,8 +821,8 @@
           resolvedTickets.forEach(t => {
             items.push({
               type: 'tickets',
-              title: `Ticket ${t.status}: ${t.subject}`,
-              desc: `Your ticket has been ${t.status}.`,
+              title: `Helpdesk ${t.status}: ${t.subject}`,
+              desc: `Your helpdesk request has been ${t.status}.`,
               timeStr: t.updated_at || t.created_at
             });
           });

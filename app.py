@@ -767,6 +767,7 @@ def student_risk_rows(limit=8):
         if reasons:
             level = "High" if score >= 60 else "Medium" if score >= 35 else "Watch"
             risk_rows.append({
+                "id": s["id"],
                 "student_id": s["id"],
                 "name": s["name"],
                 "email": s["email"],
@@ -1021,6 +1022,39 @@ def at_risk_students():
 @require_role("superadmin")
 def at_risk_students_entity():
     return jsonify(student_risk_rows(limit=50))
+
+@app.route("/api/at_risk_students/<int:item_id>", methods=["GET", "PUT", "DELETE"])
+@require_role("superadmin", "admin")
+def modify_at_risk_student(item_id):
+    if request.method == "GET":
+        row = fetch_one("SELECT s.* FROM students s WHERE s.id = ?", (item_id,))
+        if not row:
+            abort(404, description="Student not found")
+        return jsonify(row)
+
+    if request.method == "DELETE":
+        execute("DELETE FROM students WHERE id = ?", (item_id,))
+        return jsonify({"deleted": True, "id": item_id})
+
+    # For PUT, update the student fields
+    body = json_body()
+    fields = ["name", "email", "phone", "gender", "project_id", "course_id", "batch", "institution", "enrollment_date", "status"]
+    
+    cols, vals = [], []
+    for f in fields:
+        if f in body:
+            cols.append(f"{f} = ?")
+            vals.append(body[f])
+    if not cols:
+        return jsonify({"error": "no fields supplied"}), 400
+    vals.append(item_id)
+    try:
+        execute(f"UPDATE students SET {','.join(cols)} WHERE id = ?", vals)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+        
+    row = fetch_one("SELECT * FROM students WHERE id = ?", (item_id,))
+    return jsonify(row)
 
 
 @app.route("/api/at-risk-students/send-warning", methods=["POST"])
