@@ -192,12 +192,7 @@ def json_body():
 def log_activity(action, entity_type, entity_id=None, summary="", details=None):
     """Best-effort audit log. Logging should never break the user's action."""
     try:
-        try:
-            u = current_user() or {}
-        except RuntimeError:
-            # Outside of request context
-            u = {}
-        
+        u = current_user() or {}
         execute(
             """INSERT INTO activity_logs
                (user_id,user_name,user_role,action,entity_type,entity_id,summary,details)
@@ -2076,6 +2071,82 @@ def bulk_upload():
         "total": len(rows),
         "errors": errors[:15],   # cap the list returned
     })
+
+
+# ---------------------------------------------------------------------------
+# Calendar API — returns events from multiple tables for a date range
+# ---------------------------------------------------------------------------
+@app.route("/api/calendar", methods=["GET"])
+@require_role("superadmin", "trainer", "student")
+def calendar_events():
+    """Return events from chapter_assignments, activities, and attendance tables."""
+    start = request.args.get("start", "")
+    end = request.args.get("end", "")
+    if not start or not end:
+        now = datetime.now()
+        start = now.replace(day=1).strftime("%Y-%m-%d")
+        end = now.replace(month=now.month % 12 + 1, day=1).strftime("%Y-%m-%d") if now.month < 12 else f"{now.year + 1}-01-01"
+
+    db = get_db()
+    events = []
+
+    # Chapter Assignments
+    rows = db.execute("""
+        SELECT ca.id, ca.scheduled_date, ca.status, ca.batch, ca.notes,
+               ch.name AS chapter_name, t.name AS trainer_name
+        FROM chapter_assignments ca
+        LEFT JOIN chapters ch ON ca.chapter_id = ch.id
+        LEFT JOIN trainers t ON ca.trainer_id = t.id
+        WHERE ca.scheduled_date BETWEEN ? AND ?
+    """, (start, end)).fetchall()
+    for r in rows:
+        events.append({
+            "id": f"ca_{r['id']}",
+            "title": f"{r['chapter_name'] or 'Chapter'} ({r['batch']})",
+            "date": r["scheduled_date"],
+            "type": "assignment",
+            "status": r["status"],
+            "detail": f"Trainer: {r['trainer_name'] or 'N/A'}",
+        })
+
+    # Activities
+    rows = db.execute("""
+        SELECT a.id, a.activity_date, a.name, a.activity_type, a.location, a.participants_count,
+               p.name AS project_name
+        FROM activities a
+        LEFT JOIN projects p ON a.project_id = p.id
+        WHERE a.activity_date BETWEEN ? AND ?
+    """, (start, end)).fetchall()
+    for r in rows:
+        events.append({
+            "id": f"act_{r['id']}",
+            "title": r["name"],
+            "date": r["activity_date"],
+            "type": "activity",
+            "status": r["activity_type"],
+            "detail": f"{r['location'] or ''} | {r['participants_count'] or 0} participants",
+        })
+
+    # Student Attendance (aggregated by date)
+    rows = db.execute("""
+        SELECT sa.attendance_date,
+               COUNT(*) AS total,
+               SUM(CASE WHEN sa.status = 'Present' THEN 1 ELSE 0 END) AS present_count
+        FROM student_attendance sa
+        WHERE sa.attendance_date BETWEEN ? AND ?
+        GROUP BY sa.attendance_date
+    """, (start, end)).fetchall()
+    for r in rows:
+        events.append({
+            "id": f"att_{r['attendance_date']}",
+            "title": f"Attendance ({r['present_count']}/{r['total']} present)",
+            "date": r["attendance_date"],
+            "type": "attendance",
+            "status": "Recorded",
+            "detail": f"{round((r['present_count'] / r['total']) * 100, 1)}% attendance rate",
+        })
+
+    return jsonify(sorted(events, key=lambda e: e["date"]))
 
 
 @app.errorhandler(404)
