@@ -60,6 +60,7 @@
     ],
     trainer: [
       { key: 'dashboard',     label: 'Dashboard',           icon: I.grid },
+      { key: 'calendar',      label: 'Calendar',            icon: I.grid },
       { key: 'chapters',      label: 'Chapter Management',  icon: I.book },
       { key: 'students',      label: 'Student Management',  icon: I.users },
       { key: 'mark_att',      label: 'Mark Attendance',     icon: I.clip },
@@ -72,7 +73,7 @@
   };
 
   const TITLES = {
-    dashboard: 'Dashboard', chapters: 'Chapter Management', attendance: ROLE === 'student' ? 'My Attendance' : 'View Attendance',
+    dashboard: 'Dashboard', calendar: 'Calendar', chapters: 'Chapter Management', attendance: ROLE === 'student' ? 'My Attendance' : 'View Attendance',
     certificates: 'Certificates', tickets: 'Helpdesk', feedback: 'Feedback', password: 'Change Password',
     students: 'Student Management', mark_att: 'Mark Student Attendance',
   };
@@ -425,6 +426,7 @@
     tickets() { return ticketsPage(); },
     feedback() { return feedbackPage(); },
     password() { return passwordPage(); },
+    calendar() { if (typeof Calendar !== 'undefined') Calendar.render(document.getElementById('content')); },
   };
 
   // =======================================================================

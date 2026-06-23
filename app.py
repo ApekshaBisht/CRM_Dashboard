@@ -2088,20 +2088,33 @@ def calendar_events():
         end = now.replace(month=now.month % 12 + 1, day=1).strftime("%Y-%m-%d") if now.month < 12 else f"{now.year + 1}-01-01"
 
     db = get_db()
+    u = current_user()
     events = []
 
     # Chapter Assignments
-    rows = db.execute("""
-        SELECT ca.id, ca.scheduled_date, ca.status, ca.batch, ca.notes,
-               ch.name AS chapter_name, t.name AS trainer_name
-        FROM chapter_assignments ca
-        LEFT JOIN chapters ch ON ca.chapter_id = ch.id
-        LEFT JOIN trainers t ON ca.trainer_id = t.id
-        WHERE ca.scheduled_date BETWEEN ? AND ?
-    """, (start, end)).fetchall()
+    if u["role"] == "trainer":
+        rows = db.execute("""
+            SELECT ca.id, ca.scheduled_date, ca.status, ca.batch, ca.notes,
+                   ch.name AS chapter_name, t.name AS trainer_name
+            FROM chapter_assignments ca
+            LEFT JOIN chapters ch ON ca.chapter_id = ch.id
+            LEFT JOIN trainers t ON ca.trainer_id = t.id
+            WHERE ca.scheduled_date BETWEEN ? AND ? AND ca.trainer_id = ?
+        """, (start, end, u["ref_id"])).fetchall()
+    else:
+        rows = db.execute("""
+            SELECT ca.id, ca.scheduled_date, ca.status, ca.batch, ca.notes,
+                   ch.name AS chapter_name, t.name AS trainer_name
+            FROM chapter_assignments ca
+            LEFT JOIN chapters ch ON ca.chapter_id = ch.id
+            LEFT JOIN trainers t ON ca.trainer_id = t.id
+            WHERE ca.scheduled_date BETWEEN ? AND ?
+        """, (start, end)).fetchall()
+
     for r in rows:
         events.append({
             "id": f"ca_{r['id']}",
+            "raw_id": r["id"],
             "title": f"{r['chapter_name'] or 'Chapter'} ({r['batch']})",
             "date": r["scheduled_date"],
             "type": "assignment",
