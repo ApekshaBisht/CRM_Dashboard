@@ -979,12 +979,7 @@ def dashboard():
         "SELECT status, COUNT(*) AS count FROM students GROUP BY status"
     ).fetchall())
 
-    # ----- Course-wise student count -----
-    course_student_count = rows_to_dicts(db.execute("""
-        SELECT c.name AS course_name, COUNT(s.id) AS student_count
-        FROM courses c LEFT JOIN students s ON s.course_id = c.id
-        GROUP BY c.id ORDER BY student_count DESC LIMIT 7
-    """).fetchall())
+
 
     # ----- Recent activities -----
     recent_activities = rows_to_dicts(db.execute("""
@@ -1060,7 +1055,6 @@ def dashboard():
         "top_projects": top_projects,
         "attendance_trend": attendance_trend,
         "students_by_status": students_by_status,
-        "course_student_count": course_student_count,
         "recent_activities": recent_activities,
         "at_risk_students": student_risk_rows(),
         "batch_health": batch_health_rows(),

@@ -73,16 +73,6 @@ const Dashboard = (() => {
         <div class="card">
           <div class="card-header">
             <div>
-              <h3 class="card-title">Students per course</h3>
-              <div class="card-subtitle">Top courses by enrolment</div>
-            </div>
-          </div>
-          <div class="chart-wrap"><canvas id="chart-courses"></canvas></div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div>
               <h3 class="card-title">Top projects</h3>
               <div class="card-subtitle">Sorted by progress</div>
             </div>
@@ -93,6 +83,7 @@ const Dashboard = (() => {
         : '<p style="color:var(--gray-500);font-size:13px;">No projects yet.</p>'}
           </div>
         </div>
+
       </div>
 
       <div class="dashboard-grid">
@@ -129,14 +120,14 @@ const Dashboard = (() => {
         <div class="card">
           <div class="card-header">
             <div>
-              <h3 class="card-title">Mini Calendar</h3>
-              <div class="card-subtitle">Upcoming classes and activities</div>
+              <h3 class="card-title">Course Completion Rates</h3>
+              <div class="card-subtitle">Highest completion percentage by course</div>
             </div>
           </div>
           <div>
-            ${data.upcoming_schedule && data.upcoming_schedule.length
-        ? data.upcoming_schedule.map(scheduleRow).join('')
-        : '<p style="color:var(--gray-500);font-size:13px;">No upcoming events.</p>'}
+            ${data.course_completion && data.course_completion.length
+        ? data.course_completion.map(courseCompletionRow).join('')
+        : '<p style="color:var(--gray-500);font-size:13px;">No course completion data yet.</p>'}
           </div>
         </div>
 
@@ -189,7 +180,6 @@ const Dashboard = (() => {
     // ----- charts -----
     drawAttendanceChart(data.attendance_trend);
     drawProjectStatusChart(data.project_status);
-    drawCourseStudentChart(data.course_student_count);
   }
 
   function statCard(label, value, meta, icon, color) {
@@ -226,20 +216,40 @@ const Dashboard = (() => {
     </div>`;
   }
 
-  function scheduleRow(s) {
-    const t = (s.type || 'E').slice(0, 1).toUpperCase();
-    return `<div class="activity-row">
-      <div class="activity-icon" style="background:var(--blue-100);color:var(--blue-600);">${t}</div>
-      <div>
-        <div class="activity-name">${UI.escapeHtml(s.title)}</div>
-        <div class="activity-meta">${UI.escapeHtml(s.type)} • ${UI.fmtDate(s.date)}</div>
+  function courseCompletionRow(c) {
+    const pct = c.completion_pct || 0;
+    const radius = 20;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (pct / 100) * circumference;
+    const color = pct >= 80 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
+    const bg = pct >= 80 ? '#d1fae5' : pct >= 50 ? '#fef3c7' : '#fee2e2';
+    const statusText = pct >= 80 ? 'Excellent' : pct >= 50 ? 'Good' : 'Needs Focus';
+
+    return `<div class="activity-row" style="align-items: center; padding: 16px; margin-bottom: 8px; border-radius: 12px; border: 1px solid var(--gray-200); background: #fff; transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);" onmouseover="this.style.transform='translateY(-2px) scale(1.01)'; this.style.boxShadow='0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025)'" onmouseout="this.style.transform='none'; this.style.boxShadow='none'">
+      <div style="position: relative; width: 50px; height: 50px; flex-shrink: 0; margin-right: 16px;">
+        <svg width="50" height="50" viewBox="0 0 50 50" style="transform: rotate(-90deg);">
+          <circle cx="25" cy="25" r="${radius}" stroke="${bg}" stroke-width="4" fill="none" />
+          <circle cx="25" cy="25" r="${radius}" stroke="${color}" stroke-width="4" fill="none" stroke-dasharray="${circumference}" stroke-dashoffset="${circumference}" style="animation: drawCircle 1.2s ease-out forwards; animation-delay: 0.1s;" stroke-linecap="round">
+             <animate attributeName="stroke-dashoffset" from="${circumference}" to="${offset}" dur="1.2s" fill="freeze" calcMode="spline" keySplines="0.4 0 0.2 1" keyTimes="0;1" />
+          </circle>
+        </svg>
+        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: ${color};">
+          ${Math.round(pct)}%
+        </div>
+      </div>
+      <div style="flex-grow: 1;">
+        <div style="font-weight: 600; font-size: 15px; color: var(--gray-800); margin-bottom: 4px; letter-spacing: -0.01em;">${UI.escapeHtml(c.course_name)}</div>
+        <div style="font-size: 13px; color: var(--gray-500);">${UI.fmtNum(c.completed_count || 0)} out of ${UI.fmtNum(c.enrolled || 0)} students completed</div>
+      </div>
+      <div style="text-align: right; margin-left: 10px;">
+        <span class="badge" style="background:${bg}; color:${color}; border: none; padding: 6px 12px; font-weight: 600; font-size: 12px; border-radius: 20px;">${statusText}</span>
       </div>
     </div>`;
   }
 
   function ticketRow(t) {
     const p = (t.priority || 'M').slice(0, 1).toUpperCase();
-    return `<div class="activity-row">
+    return `<div class="activity-row" style="cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='transparent'" onclick="window.location.hash='#tickets'">
       <div class="activity-icon" style="background:var(--red-100);color:var(--red-600);">${p}</div>
       <div>
         <div class="activity-name">#${t.id} ${UI.escapeHtml(t.subject)}</div>
@@ -251,7 +261,7 @@ const Dashboard = (() => {
 
   function feedbackRow(f) {
     const r = (f.rating || 5);
-    return `<div class="activity-row">
+    return `<div class="activity-row" style="cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='transparent'" onclick="window.location.hash='#feedbacks'">
       <div class="activity-icon" style="background:var(--yellow-100);color:var(--yellow-600);">★</div>
       <div>
         <div class="activity-name">${UI.escapeHtml(f.subject || 'Feedback')}</div>
@@ -356,36 +366,7 @@ const Dashboard = (() => {
     }));
   }
 
-  function drawCourseStudentChart(rows) {
-    const ctx = document.getElementById('chart-courses');
-    if (!ctx) return;
-    const labels = rows.map((r) => r.course_name);
-    const data = rows.map((r) => r.student_count);
 
-    charts.push(new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Students',
-          data,
-          backgroundColor: '#2DB7C7',
-          borderRadius: 6,
-          maxBarThickness: 28,
-        }],
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { beginAtZero: true, ticks: { color: '#6B7785', precision: 0 }, grid: { color: '#EEF2F6' } },
-          y: { ticks: { color: '#6B7785' }, grid: { display: false } },
-        },
-      },
-    }));
-  }
 
   return { render, destroyCharts };
 })();
