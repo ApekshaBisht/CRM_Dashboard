@@ -72,49 +72,114 @@ const Calendar = (() => {
       if (!destroyed) draw();
     }
 
+    function chooseEventType(ds) {
+      return new Promise((resolve) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'modal-backdrop';
+        wrap.style.zIndex = '9999';
+        wrap.innerHTML = `
+          <div class="modal">
+            <header class="modal-header">
+              <h2 class="modal-title">Create Event on ${UI.fmtDate(ds)}</h2>
+              <button class="btn btn-ghost" id="choose-close">&times;</button>
+            </header>
+            <div class="modal-body" style="display:flex;gap:1rem;padding:2rem;">
+              <button class="btn btn-primary" id="btn-assignment" style="flex:1;padding:1rem;">Chapter Assignment</button>
+              <button class="btn btn-secondary" id="btn-activity" style="flex:1;padding:1rem;">Activity</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(wrap);
+
+        const cleanup = (val) => {
+          if (document.body.contains(wrap)) document.body.removeChild(wrap);
+          resolve(val);
+        };
+
+        wrap.querySelector('#choose-close').onclick = () => cleanup(null);
+        wrap.querySelector('#btn-assignment').onclick = () => cleanup('assignment');
+        wrap.querySelector('#btn-activity').onclick = () => cleanup('activity');
+        wrap.onclick = (e) => { if (e.target === wrap) cleanup(null); };
+      });
+    }
+
     async function handleDayClick(ds) {
       const canManage = !window.PORTAL || window.PORTAL.role === 'trainer' || window.PORTAL.role === 'superadmin';
       if (!canManage) return;
 
-      try {
-        const chapters = await API.list('chapters');
-        const trainers = await API.list('trainers');
-        
-        const v = await UI.openForm({
-          title: 'New Chapter Assignment',
-          fields: [
-            { key: 'chapter_id', label: 'Chapter', type: 'select', options: chapters.map(c => ({ value: c.id, label: c.name })), required: true },
-            { key: 'trainer_id', label: 'Trainer', type: 'select', options: trainers.map(t => ({ value: t.id, label: t.name })), required: true },
-            { key: 'batch', label: 'Batch', required: true },
-            { key: 'scheduled_date', label: 'Date', type: 'date', required: true, full: true }
-          ],
-          values: { scheduled_date: ds }
-        });
+      const eventType = await chooseEventType(ds);
+      if (!eventType) return;
 
-        if (!v) return;
-        
-        await API.create('chapter_assignments', v);
-        UI.toast('Assignment created', 'success');
-        fetchEvents();
-      } catch (err) {
-        UI.toast(err.message || 'Failed to create assignment', 'danger');
+      if (eventType === 'assignment') {
+        try {
+          const chapters = await API.list('chapters');
+          const trainers = await API.list('trainers');
+          
+          const v = await UI.openForm({
+            title: 'New Chapter Assignment',
+            fields: [
+              { key: 'chapter_id', label: 'Chapter', type: 'select', options: chapters.map(c => ({ value: c.id, label: c.name })), required: true },
+              { key: 'trainer_id', label: 'Trainer', type: 'select', options: trainers.map(t => ({ value: t.id, label: t.name })), required: true },
+              { key: 'batch', label: 'Batch', required: true },
+              { key: 'scheduled_date', label: 'Date', type: 'date', required: true, full: true }
+            ],
+            values: { scheduled_date: ds }
+          });
+
+          if (!v) return;
+          
+          await API.create('chapter_assignments', v);
+          UI.toast('Assignment created', 'success');
+          fetchEvents();
+        } catch (err) {
+          UI.toast(err.message || 'Failed to create assignment', 'danger');
+        }
+      } else if (eventType === 'activity') {
+        try {
+          const projects = await API.list('projects');
+          const v = await UI.openForm({
+            title: 'New Activity',
+            fields: [
+              { key: 'name', label: 'Activity Name', required: true },
+              { key: 'activity_type', label: 'Type', type: 'select', options: [
+                  {value: 'Classroom', label: 'Classroom'}, {value: 'Practical', label: 'Practical'},
+                  {value: 'Workshop', label: 'Workshop'}, {value: 'Hackathon', label: 'Hackathon'},
+                  {value: 'CSR', label: 'CSR'}, {value: 'Event', label: 'Event'}
+                ], required: true },
+              { key: 'project_id', label: 'Project', type: 'select', options: projects.map(p => ({ value: p.id, label: p.name })) },
+              { key: 'activity_date', label: 'Date', type: 'date', required: true, full: true },
+              { key: 'location', label: 'Location' },
+              { key: 'description', label: 'Description', full: true },
+              { key: 'participants_count', label: 'Participants', type: 'number' }
+            ],
+            values: { activity_date: ds, activity_type: 'Classroom', participants_count: 0 }
+          });
+
+          if (!v) return;
+          await API.create('activities', v);
+          UI.toast('Activity created', 'success');
+          fetchEvents();
+        } catch (err) {
+          UI.toast(err.message || 'Failed to create activity', 'danger');
+        }
       }
     }
 
-    async function handleEventClick(rawId) {
+    async function handleEventClick(rawId, type) {
       const canManage = !window.PORTAL || window.PORTAL.role === 'trainer' || window.PORTAL.role === 'superadmin';
-      const ev = state.events.find(e => String(e.raw_id) === String(rawId) && e.type === 'assignment');
+      const ev = state.events.find(e => String(e.raw_id) === String(rawId) && e.type === type);
       if (!ev) return;
 
-      if (canManage) {
-        const ok = await UI.confirmAction(`Delete assignment "${ev.title}" on ${ev.date}?`, 'Delete');
+      if (canManage && (type === 'assignment' || type === 'activity')) {
+        const ok = await UI.confirmAction(`Delete ${type} "${ev.title}" on ${ev.date}?`, 'Delete');
         if (ok) {
           try {
-            await API.remove('chapter_assignments', rawId);
-            UI.toast('Assignment deleted', 'success');
+            const endpoint = type === 'assignment' ? 'chapter_assignments' : 'activities';
+            await API.remove(endpoint, rawId);
+            UI.toast(`${type === 'assignment' ? 'Assignment' : 'Activity'} deleted`, 'success');
             fetchEvents();
           } catch (err) {
-            UI.toast(err.message || 'Failed to delete assignment', 'danger');
+            UI.toast(err.message || 'Failed to delete event', 'danger');
           }
         }
       }
@@ -241,9 +306,9 @@ const Calendar = (() => {
       // Add click listener for interactivity
       container.addEventListener('click', (e) => {
         const evEl = e.target.closest('.cal-event');
-        if (evEl && evEl.dataset.type === 'assignment') {
+        if (evEl && evEl.dataset.type) {
           e.stopPropagation();
-          handleEventClick(evEl.dataset.id);
+          handleEventClick(evEl.dataset.id, evEl.dataset.type);
           return;
         }
         

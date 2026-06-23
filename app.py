@@ -2133,6 +2133,7 @@ def calendar_events():
     for r in rows:
         events.append({
             "id": f"act_{r['id']}",
+            "raw_id": r["id"],
             "title": r["name"],
             "date": r["activity_date"],
             "type": "activity",
