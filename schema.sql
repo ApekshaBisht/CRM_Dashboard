@@ -228,6 +228,8 @@ CREATE TABLE feedbacks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     provider_name TEXT NOT NULL,
     provider_role TEXT DEFAULT 'Student', -- Student / Trainer / Volunteer / Admin
+    trainer_id INTEGER,
+    course_id INTEGER,
     subject TEXT,
     comments TEXT,
     rating INTEGER DEFAULT 5,

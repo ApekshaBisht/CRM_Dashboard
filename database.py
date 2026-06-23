@@ -77,6 +77,10 @@ def migrate_db(app):
             ("response", "TEXT"),
             ("updated_at", "TEXT"),
         ],
+        "feedbacks": [
+            ("trainer_id", "INTEGER"),
+            ("course_id", "INTEGER"),
+        ],
     }
 
     conn = sqlite3.connect(db_path)

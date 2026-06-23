@@ -898,7 +898,7 @@ def batch_health_rows():
 # Master board / dashboard aggregates
 # ---------------------------------------------------------------------------
 @app.route("/api/dashboard", methods=["GET"])
-@require_role("superadmin")
+@require_role("superadmin", "admin")
 def dashboard():
     """Aggregate counters, project status breakdown and recent attendance trend."""
     db = get_db()
@@ -994,6 +994,66 @@ def dashboard():
         ORDER BY a.activity_date DESC LIMIT 6
     """).fetchall())
 
+    # ----- Trainer Ratings -----
+    trainer_ratings = rows_to_dicts(db.execute("""
+        SELECT t.name, t.specialization, ROUND(AVG(f.rating), 1) as avg_rating, COUNT(f.id) as review_count
+        FROM trainers t
+        JOIN feedbacks f ON f.trainer_id = t.id
+        GROUP BY t.id
+        HAVING review_count > 0
+        ORDER BY avg_rating DESC
+        LIMIT 5
+    """).fetchall())
+
+    # ----- Course Completion Rates -----
+    course_completion = rows_to_dicts(db.execute("""
+        SELECT c.name as course_name,
+               COUNT(s.id) as enrolled,
+               SUM(CASE WHEN s.status = 'Completed' THEN 1 ELSE 0 END) as completed_count
+        FROM courses c
+        JOIN students s ON s.course_id = c.id
+        GROUP BY c.id
+        HAVING enrolled > 0
+        ORDER BY completed_count * 1.0 / enrolled DESC
+        LIMIT 5
+    """).fetchall())
+    for c in course_completion:
+        c["completion_pct"] = round((c["completed_count"] / c["enrolled"]) * 100, 1)
+
+    # ----- Upcoming Schedule -----
+    upcoming_activities = rows_to_dicts(db.execute("""
+        SELECT a.name as title, a.activity_date as date, a.activity_type as type, 'Activity' as source
+        FROM activities a
+        WHERE date(a.activity_date) >= date('now')
+        ORDER BY date(a.activity_date) ASC
+        LIMIT 5
+    """).fetchall())
+    
+    upcoming_assignments = rows_to_dicts(db.execute("""
+        SELECT ch.name as title, ca.scheduled_date as date, 'Class' as type, 'Class' as source
+        FROM chapter_assignments ca
+        JOIN chapters ch ON ca.chapter_id = ch.id
+        WHERE date(ca.scheduled_date) >= date('now')
+        ORDER BY date(ca.scheduled_date) ASC
+        LIMIT 5
+    """).fetchall())
+    
+    upcoming_schedule = upcoming_activities + upcoming_assignments
+    upcoming_schedule.sort(key=lambda x: x["date"] or "9999-12-31")
+    upcoming_schedule = upcoming_schedule[:7]
+
+    recent_tickets = rows_to_dicts(db.execute("""
+        SELECT id, subject, raised_by_name, priority, status, created_at
+        FROM tickets
+        ORDER BY datetime(created_at) DESC LIMIT 5
+    """).fetchall())
+
+    recent_feedbacks = rows_to_dicts(db.execute("""
+        SELECT id, subject, provider_name, rating, status, created_at
+        FROM feedbacks
+        ORDER BY datetime(created_at) DESC LIMIT 5
+    """).fetchall())
+
     return jsonify({
         "counts": counts,
         "project_status": project_status,
@@ -1004,6 +1064,11 @@ def dashboard():
         "recent_activities": recent_activities,
         "at_risk_students": student_risk_rows(),
         "batch_health": batch_health_rows(),
+        "trainer_ratings": trainer_ratings,
+        "course_completion": course_completion,
+        "upcoming_schedule": upcoming_schedule,
+        "recent_tickets": recent_tickets,
+        "recent_feedbacks": recent_feedbacks,
     })
 
 

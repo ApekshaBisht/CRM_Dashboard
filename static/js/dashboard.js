@@ -125,17 +125,63 @@ const Dashboard = (() => {
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-header">
+      <div class="dashboard-grid">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Mini Calendar</h3>
+              <div class="card-subtitle">Upcoming classes and activities</div>
+            </div>
+          </div>
           <div>
-            <h3 class="card-title">Recent activities</h3>
-            <div class="card-subtitle">Latest events, workshops and CSR initiatives</div>
+            ${data.upcoming_schedule && data.upcoming_schedule.length
+        ? data.upcoming_schedule.map(scheduleRow).join('')
+        : '<p style="color:var(--gray-500);font-size:13px;">No upcoming events.</p>'}
           </div>
         </div>
-        <div>
-          ${data.recent_activities.length
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Recent activities</h3>
+              <div class="card-subtitle">Latest events, workshops and CSR initiatives</div>
+            </div>
+          </div>
+          <div>
+            ${data.recent_activities.length
         ? data.recent_activities.map(activityRow).join('')
         : '<p style="color:var(--gray-500);font-size:13px;">No activities yet.</p>'}
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-grid">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Recent Tickets</h3>
+              <div class="card-subtitle">Latest support requests</div>
+            </div>
+          </div>
+          <div>
+            ${data.recent_tickets && data.recent_tickets.length
+        ? data.recent_tickets.map(ticketRow).join('')
+        : '<p style="color:var(--gray-500);font-size:13px;">No open tickets.</p>'}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Recent Feedback</h3>
+              <div class="card-subtitle">Latest ratings and comments</div>
+            </div>
+          </div>
+          <div>
+            ${data.recent_feedbacks && data.recent_feedbacks.length
+        ? data.recent_feedbacks.map(feedbackRow).join('')
+        : '<p style="color:var(--gray-500);font-size:13px;">No recent feedback.</p>'}
+          </div>
         </div>
       </div>
     `;
@@ -177,6 +223,41 @@ const Dashboard = (() => {
         <div class="activity-meta">${UI.escapeHtml(a.activity_type || '')} • ${UI.fmtDate(a.activity_date)} • ${UI.escapeHtml(a.project_name || 'No project')}</div>
       </div>
       <div class="activity-count">${UI.fmtNum(a.participants_count || 0)} ppl</div>
+    </div>`;
+  }
+
+  function scheduleRow(s) {
+    const t = (s.type || 'E').slice(0, 1).toUpperCase();
+    return `<div class="activity-row">
+      <div class="activity-icon" style="background:var(--blue-100);color:var(--blue-600);">${t}</div>
+      <div>
+        <div class="activity-name">${UI.escapeHtml(s.title)}</div>
+        <div class="activity-meta">${UI.escapeHtml(s.type)} • ${UI.fmtDate(s.date)}</div>
+      </div>
+    </div>`;
+  }
+
+  function ticketRow(t) {
+    const p = (t.priority || 'M').slice(0, 1).toUpperCase();
+    return `<div class="activity-row">
+      <div class="activity-icon" style="background:var(--red-100);color:var(--red-600);">${p}</div>
+      <div>
+        <div class="activity-name">#${t.id} ${UI.escapeHtml(t.subject)}</div>
+        <div class="activity-meta">${UI.escapeHtml(t.raised_by_name)} • ${UI.fmtDate(t.created_at)}</div>
+      </div>
+      <div class="activity-count">${UI.badge(t.status)}</div>
+    </div>`;
+  }
+
+  function feedbackRow(f) {
+    const r = (f.rating || 5);
+    return `<div class="activity-row">
+      <div class="activity-icon" style="background:var(--yellow-100);color:var(--yellow-600);">★</div>
+      <div>
+        <div class="activity-name">${UI.escapeHtml(f.subject || 'Feedback')}</div>
+        <div class="activity-meta">${UI.escapeHtml(f.provider_name)} • ${UI.fmtDate(f.created_at)}</div>
+      </div>
+      <div class="activity-count">${r}/5</div>
     </div>`;
   }
 
