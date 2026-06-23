@@ -47,6 +47,7 @@ const Dashboard = (() => {
       </div>
 
       <!-- charts row -->
+      <!-- Grid 1: Primary Analytics (Graphs) -->
       <div class="dashboard-grid">
         <div class="card">
           <div class="card-header">
@@ -69,54 +70,20 @@ const Dashboard = (() => {
         </div>
       </div>
 
-      <div class="dashboard-grid">
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h3 class="card-title">Top projects</h3>
-              <div class="card-subtitle">Sorted by progress</div>
-            </div>
-          </div>
-          <div id="top-projects">
-            ${data.top_projects.length
-        ? data.top_projects.map(topProjectRow).join('')
-        : '<p style="color:var(--gray-500);font-size:13px;">No projects yet.</p>'}
-          </div>
-        </div>
-
-      </div>
-
+      <!-- Grid 2: Performance & Health Visuals -->
       <div class="dashboard-grid">
         <div class="card">
           <div class="card-header">
             <div>
               <h3 class="card-title">At-risk students</h3>
-              <div class="card-subtitle">Dropout signals from attendance, chapters, grades and tickets</div>
+              <div class="card-subtitle">Attendance vs Progress Quadrant</div>
             </div>
           </div>
-          <div>
-            ${data.at_risk_students && data.at_risk_students.length
-        ? data.at_risk_students.map(riskRow).join('')
-        : '<p style="color:var(--gray-500);font-size:13px;">No active risk signals right now.</p>'}
+          <div class="chart-wrap" style="height: 280px; position: relative;">
+            <canvas id="chart-at-risk"></canvas>
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h3 class="card-title">Batch health score</h3>
-              <div class="card-subtitle">Attendance, progress, pending tickets and certificate readiness</div>
-            </div>
-          </div>
-          <div>
-            ${data.batch_health && data.batch_health.length
-        ? data.batch_health.map(batchHealthRow).join('')
-        : '<p style="color:var(--gray-500);font-size:13px;">No batch data available.</p>'}
-          </div>
-        </div>
-      </div>
-
-      <div class="dashboard-grid">
         <div class="card">
           <div class="card-header">
             <div>
@@ -130,22 +97,9 @@ const Dashboard = (() => {
         : '<p style="color:var(--gray-500);font-size:13px;">No course completion data yet.</p>'}
           </div>
         </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h3 class="card-title">Recent activities</h3>
-              <div class="card-subtitle">Latest events, workshops and CSR initiatives</div>
-            </div>
-          </div>
-          <div>
-            ${data.recent_activities.length
-        ? data.recent_activities.map(activityRow).join('')
-        : '<p style="color:var(--gray-500);font-size:13px;">No activities yet.</p>'}
-          </div>
-        </div>
       </div>
 
+      <!-- Grid 3: Urgent Support Actions -->
       <div class="dashboard-grid">
         <div class="card">
           <div class="card-header">
@@ -175,11 +129,58 @@ const Dashboard = (() => {
           </div>
         </div>
       </div>
+
+      <!-- Grid 4: Operational Lists -->
+      <div class="dashboard-grid">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Batch health score</h3>
+              <div class="card-subtitle">Attendance, progress, pending tickets and certificate readiness</div>
+            </div>
+          </div>
+          <div>
+            ${data.batch_health && data.batch_health.length
+        ? data.batch_health.map(batchHealthRow).join('')
+        : '<p style="color:var(--gray-500);font-size:13px;">No batch data available.</p>'}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Top projects</h3>
+              <div class="card-subtitle">Sorted by progress</div>
+            </div>
+          </div>
+          <div id="top-projects">
+            ${data.top_projects.length
+        ? data.top_projects.map(topProjectRow).join('')
+        : '<p style="color:var(--gray-500);font-size:13px;">No projects yet.</p>'}
+          </div>
+        </div>
+      </div>
+
+      <!-- Full Width: Recent Activities Logs -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">Recent activities</h3>
+            <div class="card-subtitle">Latest events, workshops and CSR initiatives</div>
+          </div>
+        </div>
+        <div>
+          ${data.recent_activities.length
+        ? data.recent_activities.map(activityRow).join('')
+        : '<p style="color:var(--gray-500);font-size:13px;">No activities yet.</p>'}
+        </div>
+      </div>
     `;
 
     // ----- charts -----
     drawAttendanceChart(data.attendance_trend);
     drawProjectStatusChart(data.project_status);
+    drawAtRiskChart(data.at_risk_students);
   }
 
   function statCard(label, value, meta, icon, color) {
@@ -271,16 +272,78 @@ const Dashboard = (() => {
     </div>`;
   }
 
-  function riskRow(r) {
-    return `<div class="activity-row">
-      <div class="activity-icon">${UI.escapeHtml((r.risk_level || 'R').slice(0, 1))}</div>
-      <div>
-        <div class="activity-name">${UI.escapeHtml(r.name)} ${UI.badge(r.risk_level || 'Watch')}</div>
-        <div class="activity-meta">${UI.escapeHtml(r.reason || '')}</div>
-        <div class="activity-meta">Attendance ${r.attendance_pct || 0}% • Progress ${r.progress_pct || 0}% • Pending chapters ${r.pending_chapters || 0}</div>
-      </div>
-      <div class="activity-count">${UI.fmtNum(r.risk_score || 0)}</div>
-    </div>`;
+  function drawAtRiskChart(rows) {
+    const ctx = document.getElementById('chart-at-risk');
+    if (!ctx || !rows || !rows.length) {
+       if (ctx) ctx.parentElement.innerHTML = '<p style="color:var(--gray-500);font-size:13px;padding:16px;">No active risk signals right now.</p>';
+       return;
+    }
+
+    const data = rows.map(r => ({
+      x: r.progress_pct || 0,
+      y: r.attendance_pct || 0,
+      r: 6,
+      raw: r
+    }));
+
+    charts.push(new Chart(ctx, {
+      type: 'scatter',
+      data: {
+        datasets: [{
+          label: 'At-Risk Students',
+          data,
+          backgroundColor: function(context) {
+            const row = context.raw?.raw;
+            if (!row) return '#ef4444';
+            if (row.risk_level === 'High') return '#ef4444';
+            if (row.risk_level === 'Medium') return '#f59e0b';
+            return '#10b981';
+          },
+          borderColor: '#ffffff',
+          borderWidth: 1,
+          hoverBackgroundColor: '#000000',
+          hoverRadius: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(17,24,39,0.95)',
+            titleFont: { size: 14, weight: 'bold' },
+            bodyFont: { size: 13 },
+            padding: 12,
+            callbacks: {
+              title: function(context) {
+                const r = context[0].raw.raw;
+                return r.name + ' (' + r.risk_level + ' Risk)';
+              },
+              label: function(context) {
+                const r = context.raw.raw;
+                const lines = [];
+                lines.push('Progress: ' + r.progress_pct + '% | Attendance: ' + r.attendance_pct + '%');
+                lines.push('Reason: ' + r.reason);
+                return lines;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'Course Progress %', color: '#6B7785' },
+            min: 0, max: 100,
+            grid: { color: '#EEF2F6' }
+          },
+          y: {
+            title: { display: true, text: 'Attendance %', color: '#6B7785' },
+            min: 0, max: 100,
+            grid: { color: '#EEF2F6' }
+          }
+        }
+      }
+    }));
   }
 
   function batchHealthRow(b) {
