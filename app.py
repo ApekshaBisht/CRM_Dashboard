@@ -2136,7 +2136,7 @@ def bulk_upload():
 # Calendar API — returns events from multiple tables for a date range
 # ---------------------------------------------------------------------------
 @app.route("/api/calendar", methods=["GET"])
-@require_role("superadmin", "trainer", "student")
+@require_role("superadmin", "admin", "trainer", "student")
 def calendar_events():
     """Return events from chapter_assignments, activities, and attendance tables."""
     start = request.args.get("start", "")
@@ -2154,18 +2154,37 @@ def calendar_events():
     if u["role"] == "trainer":
         rows = db.execute("""
             SELECT ca.id, ca.scheduled_date, ca.status, ca.batch, ca.notes,
-                   ch.name AS chapter_name, t.name AS trainer_name
+                   ch.name AS chapter_name, t.name AS trainer_name, co.name AS course_name
             FROM chapter_assignments ca
             LEFT JOIN chapters ch ON ca.chapter_id = ch.id
+            LEFT JOIN modules m ON ch.module_id = m.id
+            LEFT JOIN courses co ON m.course_id = co.id
             LEFT JOIN trainers t ON ca.trainer_id = t.id
             WHERE ca.scheduled_date BETWEEN ? AND ? AND ca.trainer_id = ?
         """, (start, end, u["ref_id"])).fetchall()
-    else:
+    elif u["role"] == "student":
+        # Students should probably only see assignments for their batch/course, but for now we'll match their batch
+        student = db.execute("SELECT batch FROM students WHERE id = ?", (u["ref_id"],)).fetchone()
+        student_batch = student["batch"] if student else ""
         rows = db.execute("""
             SELECT ca.id, ca.scheduled_date, ca.status, ca.batch, ca.notes,
-                   ch.name AS chapter_name, t.name AS trainer_name
+                   ch.name AS chapter_name, t.name AS trainer_name, co.name AS course_name
             FROM chapter_assignments ca
             LEFT JOIN chapters ch ON ca.chapter_id = ch.id
+            LEFT JOIN modules m ON ch.module_id = m.id
+            LEFT JOIN courses co ON m.course_id = co.id
+            LEFT JOIN trainers t ON ca.trainer_id = t.id
+            WHERE ca.scheduled_date BETWEEN ? AND ? AND ca.batch = ?
+        """, (start, end, student_batch)).fetchall()
+    else:
+        # Admin / Superadmin
+        rows = db.execute("""
+            SELECT ca.id, ca.scheduled_date, ca.status, ca.batch, ca.notes,
+                   ch.name AS chapter_name, t.name AS trainer_name, co.name AS course_name
+            FROM chapter_assignments ca
+            LEFT JOIN chapters ch ON ca.chapter_id = ch.id
+            LEFT JOIN modules m ON ch.module_id = m.id
+            LEFT JOIN courses co ON m.course_id = co.id
             LEFT JOIN trainers t ON ca.trainer_id = t.id
             WHERE ca.scheduled_date BETWEEN ? AND ?
         """, (start, end)).fetchall()
@@ -2174,7 +2193,7 @@ def calendar_events():
         events.append({
             "id": f"ca_{r['id']}",
             "raw_id": r["id"],
-            "title": f"{r['chapter_name'] or 'Chapter'} ({r['batch']})",
+            "title": f"{r['course_name'] or 'Course'} - {r['chapter_name'] or 'Chapter'} ({r['batch']})",
             "date": r["scheduled_date"],
             "type": "assignment",
             "status": r["status"],

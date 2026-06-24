@@ -219,7 +219,9 @@ const Calendar = (() => {
         const isT = ds === today;
         const evHtml = dayEvents.map(ev => {
           const c = TYPE_COLORS[ev.type] || TYPE_COLORS.assignment;
-          return `<div class="cal-agenda-event" style="background:${c.bg};border-left:3px solid ${c.border};color:${c.text}">${UI.escapeHtml(ev.title)}</div>`;
+          let content = UI.escapeHtml(ev.title);
+          if (ev.detail) content += `<br><small style="opacity:0.8;">${UI.escapeHtml(ev.detail)}</small>`;
+          return `<div class="cal-agenda-event" style="background:${c.bg};border-left:3px solid ${c.border};color:${c.text}">${content}</div>`;
         }).join('');
         allDays.push(`
           <div class="cal-agenda-day${isT ? ' cal-today' : ''}">
@@ -259,7 +261,9 @@ const Calendar = (() => {
           const evHtml = dayEvents.slice(0, maxShow).map(ev => {
             const c = TYPE_COLORS[ev.type] || TYPE_COLORS.assignment;
             const dataAttrs = ev.raw_id ? `data-id="${ev.raw_id}" data-type="${ev.type}"` : '';
-            return `<div class="cal-event" ${dataAttrs} style="background:${c.bg};border-left:3px solid ${c.border};color:${c.text};cursor:pointer;" title="${UI.escapeHtml(ev.title)} — ${UI.escapeHtml(ev.detail || '')}">${UI.escapeHtml(ev.title)}</div>`;
+            let content = UI.escapeHtml(ev.title);
+            if (ev.detail) content += `<div style="font-size:0.85em;opacity:0.8;margin-top:2px;">${UI.escapeHtml(ev.detail)}</div>`;
+            return `<div class="cal-event" ${dataAttrs} style="background:${c.bg};border-left:3px solid ${c.border};color:${c.text};cursor:pointer;" title="${UI.escapeHtml(ev.title)} — ${UI.escapeHtml(ev.detail || '')}">${content}</div>`;
           }).join('');
           const more = dayEvents.length > maxShow ? `<div class="cal-more">+${dayEvents.length - maxShow} more</div>` : '';
 
