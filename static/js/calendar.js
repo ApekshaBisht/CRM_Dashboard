@@ -272,6 +272,12 @@ const Calendar = (() => {
               <div class="cal-day-events">${evHtml}${more}</div>
             </div>`;
         }
+        
+        const totalCells = firstDay + daysInMonth;
+        const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+        for (let i = 0; i < remaining; i++) {
+          dayCells += `<div class="cal-day cal-day-empty"></div>`;
+        }
       }
 
       const clockHtml = `<span class="cal-clock" id="cal-clock">${now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>`;
