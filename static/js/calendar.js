@@ -12,7 +12,6 @@ const Calendar = (() => {
   const TYPE_COLORS = {
     assignment:  { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' },
     activity:    { bg: '#fef3c7', border: '#f59e0b', text: '#92400e' },
-    attendance:  { bg: '#d1fae5', border: '#10b981', text: '#065f46' },
   };
 
   let refreshTimer = null;
@@ -291,7 +290,6 @@ const Calendar = (() => {
           <div class="cal-legend">
             <span class="cal-legend-item"><span class="cal-dot" style="background:#3b82f6"></span> Assignment</span>
             <span class="cal-legend-item"><span class="cal-dot" style="background:#f59e0b"></span> Activity</span>
-            <span class="cal-legend-item"><span class="cal-dot" style="background:#10b981"></span> Attendance</span>
           </div>
           ${isTinyScreen
             ? `<div class="cal-agenda">${renderAgenda()}</div>`

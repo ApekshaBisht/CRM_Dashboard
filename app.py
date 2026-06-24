@@ -2219,25 +2219,6 @@ def calendar_events():
             "detail": f"{r['location'] or ''} | {r['participants_count'] or 0} participants",
         })
 
-    # Student Attendance (aggregated by date)
-    rows = db.execute("""
-        SELECT sa.attendance_date,
-               COUNT(*) AS total,
-               SUM(CASE WHEN sa.status = 'Present' THEN 1 ELSE 0 END) AS present_count
-        FROM student_attendance sa
-        WHERE sa.attendance_date BETWEEN ? AND ?
-        GROUP BY sa.attendance_date
-    """, (start, end)).fetchall()
-    for r in rows:
-        events.append({
-            "id": f"att_{r['attendance_date']}",
-            "title": f"Attendance ({r['present_count']}/{r['total']} present)",
-            "date": r["attendance_date"],
-            "type": "attendance",
-            "status": "Recorded",
-            "detail": f"{round((r['present_count'] / r['total']) * 100, 1)}% attendance rate",
-        })
-
     return jsonify(sorted(events, key=lambda e: e["date"]))
 
 
